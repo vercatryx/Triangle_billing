@@ -1,4 +1,3 @@
-const os = require('os');
 const { performLoginSequence } = require('./auth');
 const axios = require('axios');
 const { executeBillingOnPage } = require('./billingActions');
@@ -9,7 +8,6 @@ const {
     closeBrowser,
     restartBrowser,
     getActiveCount,
-    getTargetCount,
     setTargetCount,
     isDraining,
     requestDrain,
@@ -22,12 +20,7 @@ const path = require('path');
 
 require('dotenv').config();
 
-// --- Dynamic scaling (CPU under 80%) ---
-const CPU_TARGET_PERCENT = Math.max(1, Math.min(100, parseInt(process.env.CPU_TARGET_PERCENT || '80', 10)));
-const CPU_CHECK_INTERVAL_MS = Math.max(5000, parseInt(process.env.CPU_CHECK_INTERVAL_MS || '15000', 10));
-const WINDOWS_LOAD_FALLBACK_TARGET = 2;
-/** Default number of browsers to start with; then scale up/down as needed. Env: DEFAULT_BROWSERS (default 10). */
-const DEFAULT_BROWSERS = Math.max(1, Math.min(MAX_BROWSERS, parseInt(process.env.DEFAULT_BROWSERS || '10', 10)));
+/** Number of browsers to run; always MAX_BROWSERS (no CPU-based scaling). */
 
 const EMAIL = process.env.UNITEUS_EMAIL;
 const PASSWORD = process.env.UNITEUS_PASSWORD;
@@ -730,9 +723,9 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
     // Ensure slot 0 exists (launchBrowser already called by server)
     startRunner(0);
 
-    // Start with DEFAULT_BROWSERS (env), then scale as needed
-    setTargetCount(DEFAULT_BROWSERS);
-    const initialToAdd = Math.max(0, DEFAULT_BROWSERS - 1);
+    // Always use MAX_BROWSERS (no CPU-based scaling)
+    setTargetCount(MAX_BROWSERS);
+    const initialToAdd = Math.max(0, MAX_BROWSERS - 1);
     for (let a = 0; a < initialToAdd; a++) {
         const added = await addSlot();
         if (added && !runEnding) {
@@ -741,68 +734,6 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
             emitEvent('runners', runners.slice(0, getActiveCount()));
         }
     }
-
-    // Process CPU (same as dashboard "CPU: X%") + load average. Scale up when *our* process has headroom.
-    let lastCpuUsage = process.cpuUsage();
-    let lastCpuTime = Date.now();
-
-    let scalingInterval = setInterval(() => {
-        try {
-            if (runEnding || (stopCheck && stopCheck())) return;
-            const elapsedSec = (Date.now() - lastCpuTime) / 1000;
-            const delta = process.cpuUsage(lastCpuUsage);
-            lastCpuUsage = process.cpuUsage();
-            lastCpuTime = Date.now();
-            const cpuMicro = (delta && (Number(delta.user) + Number(delta.system))) || 0;
-            const processCpuPercent = elapsedSec > 0 ? (cpuMicro / 1e6 / elapsedSec) * 100 : 0;
-
-            const load = os.loadavg()[0];
-            const cpus = Math.max(1, (os.cpus && os.cpus()) ? os.cpus().length : 1);
-            const threshold = (CPU_TARGET_PERCENT / 100) * cpus;
-            const loadUnderThreshold = load === 0 || load < threshold;
-            const processUnderTarget = processCpuPercent < CPU_TARGET_PERCENT;
-            const hasHeadroom = loadUnderThreshold || processUnderTarget;
-            const overloaded = !loadUnderThreshold || !processUnderTarget;
-
-            let target;
-            if (load === 0) {
-                if (processUnderTarget && hasWork() && getActiveCount() < MAX_BROWSERS) {
-                    target = Math.min(MAX_BROWSERS, getActiveCount() + 1);
-                } else if (!processUnderTarget && getActiveCount() > 1) {
-                    target = Math.max(1, getActiveCount() - 1);
-                } else {
-                    target = Math.min(MAX_BROWSERS, Math.max(1, getTargetCount() || WINDOWS_LOAD_FALLBACK_TARGET));
-                }
-            } else if (hasHeadroom && hasWork() && getActiveCount() < MAX_BROWSERS) {
-                target = Math.min(MAX_BROWSERS, getActiveCount() + 1);
-            } else if (overloaded && getActiveCount() > 1) {
-                target = Math.max(1, getActiveCount() - 1);
-            } else {
-                target = getTargetCount();
-            }
-            setTargetCount(target);
-
-            const active = getActiveCount();
-            if (active > target) {
-                for (let k = 0; k < active - target; k++) {
-                    requestDrain(active - 1 - k);
-                }
-            }
-            if (active < target && hasWork() && !runEnding) {
-                const toAdd = target - active;
-                for (let a = 0; a < toAdd; a++) {
-                    addSlot().then(added => {
-                        if (added && !runEnding) {
-                            startRunner(getActiveCount() - 1);
-                            emitEvent('config', { browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS });
-                        }
-                    });
-                }
-            }
-        } catch (err) {
-            console.error('[Worker] Scaling tick error (non-fatal):', err.message);
-        }
-    }, CPU_CHECK_INTERVAL_MS);
 
     // Wait until queue is drained
     await new Promise((resolve) => {
@@ -813,7 +744,6 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         check();
     });
     runEnding = true;
-    clearInterval(scalingInterval);
 
     await Promise.all(runnerPromises);
 

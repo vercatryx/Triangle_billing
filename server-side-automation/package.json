@@ -44,7 +44,9 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "signAndEditExecutable": false,
+      "forceCodeSigning": false
     },
     "mac": {
       "target": [

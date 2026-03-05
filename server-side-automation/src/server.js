@@ -8,7 +8,6 @@ installLogger();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const axios = require('axios');
 const { launchBrowser, closeBrowser, getActiveCount, MAX_BROWSERS } = require('./core/browser');
 const { performLoginSequence } = require('./core/auth');
@@ -29,8 +28,7 @@ const PORT = process.env.PORT || 3500;
         mtime = '(no .env file)';
     }
     const maxBrowsers = process.env.MAX_BROWSERS || '15';
-    const defaultBrowsers = process.env.DEFAULT_BROWSERS || '10';
-    console.log(`[Env] Loaded .env (mtime: ${mtime}) → PORT=${PORT}, MAX_BROWSERS=${maxBrowsers}, DEFAULT_BROWSERS=${defaultBrowsers}`);
+    console.log(`[Env] Loaded .env (mtime: ${mtime}) → PORT=${PORT}, MAX_BROWSERS=${maxBrowsers}`);
 })();
 
 // Allow large queue payloads when running "Run current queue" with many items (default is 100kb)
@@ -73,25 +71,6 @@ function broadcast(type, data) {
         client.res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
     });
 }
-
-// Live CPU usage (process + system load) for dashboard
-let lastCpuUsage = process.cpuUsage();
-let lastCpuTime = Date.now();
-let lastSystemState = null;
-
-setInterval(() => {
-    const now = Date.now();
-    const elapsedSec = (now - lastCpuTime) / 1000;
-    const delta = process.cpuUsage(lastCpuUsage);
-    lastCpuUsage = process.cpuUsage();
-    lastCpuTime = now;
-    const cpuPercent = elapsedSec > 0
-        ? Math.min(100, Math.round(((delta.user + delta.system) / 1e6 / elapsedSec) * 100))
-        : 0;
-    const loadAvg = os.loadavg && os.loadavg();
-    lastSystemState = { cpuPercent, loadAvg: loadAvg || [0, 0, 0] };
-    broadcast('system', lastSystemState);
-}, 1500);
 
 app.get('/events', eventsHandler);
 
@@ -218,7 +197,7 @@ app.post('/fetch-requests', requireAuthorizedDevice, async (req, res) => {
         const requests = await fetchRequestsFromTSS();
 
         if (!requests || requests.length === 0) {
-            return res.json({ success: true, count: 0, message: 'No pending requests found.' });
+            return res.json({ success: true, count: 0, message: 'No pending requests found.', requests: [] });
         }
 
         // Initialize status
@@ -226,7 +205,8 @@ app.post('/fetch-requests', requireAuthorizedDevice, async (req, res) => {
         currentRequests = requests;
         broadcast('queue', currentRequests);
 
-        res.json({ success: true, count: requests.length, message: `Loaded ${requests.length} requests.` });
+        // Include requests in response so client can show them even if SSE is disconnected (e.g. Electron)
+        res.json({ success: true, count: requests.length, message: `Loaded ${requests.length} requests.`, requests });
     } catch (e) {
         console.error('[Server] Fetch Preview Error:', e);
         res.status(500).json({ error: e.message });

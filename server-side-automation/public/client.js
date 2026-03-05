@@ -94,56 +94,72 @@ function parse403AndReject(r) {
     });
 }
 
-// Connect to SSE
-const evtSource = new EventSource('/events');
+// Connect to SSE with reconnect on error (fixes "Disconnected" and missing queue updates in Electron)
+let evtSource = null;
+let sseReconnectDelay = 1000;
+const SSE_RECONNECT_MAX_DELAY = 15000;
 
-evtSource.onopen = () => {
-    statusBadge.textContent = 'Connected';
-    statusBadge.className = 'badge connected';
-    log('System connected to server.');
-};
-
-evtSource.addEventListener('config', (e) => {
-    const data = JSON.parse(e.data);
-    const countEl = document.getElementById('browser-count-n');
-    const maxEl = document.getElementById('max-browsers-n');
-    if (countEl && data.browserCount != null) countEl.textContent = data.browserCount;
-    if (maxEl && data.maxBrowsers != null) maxEl.textContent = data.maxBrowsers;
-});
-
-evtSource.addEventListener('system', (e) => {
-    const data = JSON.parse(e.data);
-    const el = document.getElementById('cpu-usage');
-    if (el && data.cpuPercent != null) {
-        el.textContent = `CPU: ${data.cpuPercent}%`;
-        el.title = data.loadAvg && data.loadAvg.length
-            ? `Process CPU: ${data.cpuPercent}% · Load avg: ${data.loadAvg.map((l, i) => (i === 0 ? '1m' : i === 1 ? '5m' : '15m') + ' ' + l.toFixed(2)).join(', ')}`
-            : `Process CPU: ${data.cpuPercent}%`;
+function connectSSE() {
+    if (evtSource) {
+        evtSource.close();
+        evtSource = null;
     }
-});
+    statusBadge.textContent = 'Connecting...';
+    statusBadge.className = 'badge';
+    evtSource = new EventSource('/events');
 
-evtSource.onerror = () => {
-    statusBadge.textContent = 'Disconnected';
-    statusBadge.className = 'badge disconnected';
-};
+    evtSource.onopen = () => {
+        statusBadge.textContent = 'Connected';
+        statusBadge.className = 'badge connected';
+        sseReconnectDelay = 1000; // reset backoff on successful connect
+        log('System connected to server.');
+    };
 
-// Handle Log Events
-evtSource.addEventListener('log', (e) => {
-    const data = JSON.parse(e.data);
-    log(data.message, data.type);
-});
+    evtSource.addEventListener('config', (e) => {
+        const data = JSON.parse(e.data);
+        const countEl = document.getElementById('browser-count-n');
+        const maxEl = document.getElementById('max-browsers-n');
+        if (countEl && data.browserCount != null) countEl.textContent = data.browserCount;
+        if (maxEl && data.maxBrowsers != null) maxEl.textContent = data.maxBrowsers;
+    });
 
-// Handle Queue Updates (Full Refresh)
-evtSource.addEventListener('queue', (e) => {
+    evtSource.onerror = () => {
+        // Only close and reconnect when connection is actually CLOSED (2). While CONNECTING (0),
+        // browsers/Electron often fire onerror once; closing here would prevent onopen from ever firing.
+        if (evtSource && evtSource.readyState === 2) {
+            statusBadge.textContent = 'Disconnected';
+            statusBadge.className = 'badge disconnected';
+            evtSource.close();
+            evtSource = null;
+            const delay = sseReconnectDelay;
+            sseReconnectDelay = Math.min(sseReconnectDelay * 1.5, SSE_RECONNECT_MAX_DELAY);
+            setTimeout(connectSSE, delay);
+        } else {
+            statusBadge.textContent = 'Connecting...';
+            statusBadge.className = 'badge';
+        }
+    };
+
+    evtSource.addEventListener('queue', onQueueEvent);
+    evtSource.addEventListener('log', onLogEvent);
+    evtSource.addEventListener('status', onStatusEvent);
+    evtSource.addEventListener('runners', onRunnersEvent);
+}
+
+function onQueueEvent(e) {
     const requests = JSON.parse(e.data);
     allRequests = requests;
     syncFilterOptions(requests);
     applyFilterAndRender();
     updateStats(requests);
-});
+}
 
-// Handle Status Updates (for showing/hiding stop button)
-evtSource.addEventListener('status', (e) => {
+function onLogEvent(e) {
+    const data = JSON.parse(e.data);
+    log(data.message, data.type);
+}
+
+function onStatusEvent(e) {
     const data = JSON.parse(e.data);
     const stopBtn = document.getElementById('btn-stop');
     if (stopBtn) {
@@ -153,10 +169,9 @@ evtSource.addEventListener('status', (e) => {
             stopBtn.style.display = 'none';
         }
     }
-});
+}
 
-// Handle Runners (active slots: client name + current step)
-evtSource.addEventListener('runners', (e) => {
+function onRunnersEvent(e) {
     const runners = JSON.parse(e.data);
     const grid = document.getElementById('runners-grid');
     const section = document.getElementById('runners-section');
@@ -170,7 +185,9 @@ evtSource.addEventListener('runners', (e) => {
         grid.appendChild(card);
     });
     section.style.display = list.length ? 'block' : 'none';
-});
+}
+
+connectSSE();
 
 filterStatusEl.addEventListener('change', () => applyFilterAndRender());
 
@@ -311,6 +328,13 @@ function downloadCloudRequests() {
                 log(`Fetch Error: ${d.error}`, 'error');
             } else if (d) {
                 log(`Fetched ${d.count} requests from TSS API.`, 'success');
+                // Apply queue from response so clients show even when SSE is disconnected (e.g. Electron)
+                if (Array.isArray(d.requests) && d.requests.length > 0) {
+                    allRequests = d.requests;
+                    syncFilterOptions(allRequests);
+                    applyFilterAndRender();
+                    updateStats(allRequests);
+                }
             }
         })
         .catch(e => {
