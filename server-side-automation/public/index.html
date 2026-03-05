@@ -15,8 +15,9 @@
             <div class="header-badges">
                 <span id="device-badge" class="badge badge-muted" title="This computer's device ID" style="display: none;">Device: <b id="device-id">–</b></span>
                 <span id="cpu-usage" class="badge badge-muted" title="Process CPU usage">CPU: –%</span>
-                <span id="browser-count" class="badge badge-muted" title="Parallel browser slots">Browsers: <b id="browser-count-n">–</b></span>
+                <span id="browser-count" class="badge badge-muted" title="Active / max parallel browser slots">Browsers: <b id="browser-count-n">–</b> / <b id="max-browsers-n">–</b></span>
                 <div id="connection-status" class="badge">Connecting...</div>
+                <button type="button" id="btn-open-in-browser" class="btn-open-in-browser" title="Open this app in your default browser" style="display: none;">🌐 Open in browser</button>
             </div>
         </header>
 
@@ -90,7 +91,10 @@
             </section>
 
             <section class="log-panel">
-                <h2>Live Activity</h2>
+                <div class="log-panel-header">
+                    <h2>Live Activity</h2>
+                    <button type="button" id="btn-save-log" class="btn-save-log" title="Save log file to a location of your choice">Save log</button>
+                </div>
                 <div id="terminal" class="terminal">
                     <div class="line dimmed">Waiting for logs...</div>
                 </div>

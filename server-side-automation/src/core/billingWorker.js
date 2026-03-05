@@ -309,7 +309,7 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         emitEvent('runners', runners.slice(0, getActiveCount()));
     };
 
-    emitEvent('config', { browserCount: getActiveCount() });
+    emitEvent('config', { browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS });
 
     /**
      * Process a single request (one iteration of the old lane loop).
@@ -715,7 +715,7 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         if (isDraining(slot)) {
             await closeBrowser(slot);
             slotClosed(slot);
-            emitEvent('config', { browserCount: getActiveCount() });
+            emitEvent('config', { browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS });
             emitEvent('runners', runners.slice(0, getActiveCount()));
         }
     }
@@ -737,7 +737,7 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         const added = await addSlot();
         if (added && !runEnding) {
             startRunner(getActiveCount() - 1);
-            emitEvent('config', { browserCount: getActiveCount() });
+            emitEvent('config', { browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS });
             emitEvent('runners', runners.slice(0, getActiveCount()));
         }
     }
@@ -794,7 +794,7 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                     addSlot().then(added => {
                         if (added && !runEnding) {
                             startRunner(getActiveCount() - 1);
-                            emitEvent('config', { browserCount: getActiveCount() });
+                            emitEvent('config', { browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS });
                         }
                     });
                 }

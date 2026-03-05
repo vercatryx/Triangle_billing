@@ -24,6 +24,15 @@ let dragSelect = {
 /** Last row index clicked (for Shift+click range selection). -1 = none yet. */
 let lastClickedIndex = -1;
 
+// Electron: show "Open in browser" button and wire it
+(function initOpenInBrowser() {
+    const btn = document.getElementById('btn-open-in-browser');
+    if (btn && typeof window.electronApi !== 'undefined' && typeof window.electronApi.openInBrowser === 'function') {
+        btn.style.display = '';
+        btn.addEventListener('click', () => window.electronApi.openInBrowser());
+    }
+})();
+
 // Fetch device authorization status on load. Fail closed: any error = treat as not authorized.
 fetch('/device-status')
     .then(r => {
@@ -46,7 +55,7 @@ fetch('/device-status')
                 unauthIdEl.textContent = deviceId || '(see server console)';
                 banner.style.display = 'block';
                 setActionButtonsEnabled(false);
-                log(`Access denied. Device ID: ${deviceId || '(unavailable)'}. Add this device to the allowed list or check server connection.`, 'error');
+                log(`Access denied. Device ID: ${deviceId || '(unavailable)'}. Add this device to the allowed list or check server connection. (Authorized IDs are in server logs.)`, 'error');
             } else {
                 banner.style.display = 'none';
                 setActionButtonsEnabled(true);
@@ -96,8 +105,10 @@ evtSource.onopen = () => {
 
 evtSource.addEventListener('config', (e) => {
     const data = JSON.parse(e.data);
-    const el = document.getElementById('browser-count-n');
-    if (el && data.browserCount != null) el.textContent = data.browserCount;
+    const countEl = document.getElementById('browser-count-n');
+    const maxEl = document.getElementById('max-browsers-n');
+    if (countEl && data.browserCount != null) countEl.textContent = data.browserCount;
+    if (maxEl && data.maxBrowsers != null) maxEl.textContent = data.maxBrowsers;
 });
 
 evtSource.addEventListener('system', (e) => {
@@ -656,6 +667,27 @@ function closeExcelImportModal() {
 }
 
 document.getElementById('btn-import-excel').addEventListener('click', () => document.getElementById('excel-file-input').click());
+
+document.getElementById('btn-save-log').addEventListener('click', async function () {
+    try {
+        const r = await fetch('/api/log-file');
+        if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            log(err.error || 'Could not save log file.', 'error');
+            return;
+        }
+        const blob = await r.blob();
+        const name = r.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'server-log.log';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        log('Save log failed: ' + (e.message || String(e)), 'error');
+    }
+});
 
 document.getElementById('excel-file-input').addEventListener('change', function () {
     const file = this.files && this.files[0];

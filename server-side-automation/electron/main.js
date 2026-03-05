@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -98,7 +98,8 @@ function createWindow() {
         title: 'Billing Automation',
         webPreferences: {
             nodeIntegration: false,
-            contextIsolation: true
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload-main.js')
         }
     });
 
@@ -111,6 +112,10 @@ function createWindow() {
         return { action: 'deny' };
     });
 }
+
+ipcMain.handle('main:open-in-browser', () => {
+    shell.openExternal(`http://127.0.0.1:${PORT}/`);
+});
 
 /** .env is shipped with the app (same folder as server). */
 function getEnvPath() {

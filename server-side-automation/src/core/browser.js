@@ -2,7 +2,7 @@ const { chromium } = require('playwright');
 require('dotenv').config();
 
 /** Max number of browser instances (pool cap). Env: MAX_BROWSERS */
-const MAX_BROWSERS = Math.max(1, Math.min(20, parseInt(process.env.MAX_BROWSERS || '20', 10)));
+const MAX_BROWSERS = Math.max(1, Math.min(15, parseInt(process.env.MAX_BROWSERS || '15', 10)));
 
 /** Number of active slots (0..activeCount-1). Dynamic; can grow/shrink. */
 let activeCount = 0;

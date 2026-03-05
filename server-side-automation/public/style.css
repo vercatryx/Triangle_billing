@@ -52,6 +52,17 @@ header {
 .badge.unauthorized { background: var(--error); color: #fff; }
 .header-badges { display: flex; align-items: center; gap: 0.5rem; }
 
+.btn-open-in-browser {
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+.btn-open-in-browser:hover { background: var(--bg-elevated); }
+
 .device-unauthorized-banner {
     width: 100%;
     padding: 0.75rem 1rem;
@@ -188,6 +199,28 @@ h2 { font-size: 1rem; color: var(--text-muted); margin: 0; }
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
+}
+
+.log-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.log-panel-header h2 { margin: 0; }
+.btn-save-log {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+}
+.btn-save-log:hover {
+    color: var(--text-main);
+    border-color: var(--text-muted);
 }
 
 .table-container, .terminal {

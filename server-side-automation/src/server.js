@@ -1,17 +1,37 @@
+// Load .env first so all required modules see fresh values
+require('dotenv').config(process.env.DOTENV_CONFIG_PATH ? { path: process.env.DOTENV_CONFIG_PATH } : {});
+
+// File logger: full console (log/info/warn/error) → logs/server.log, keeps last 3 days
+const { install: installLogger, getLogPath } = require('./core/logger');
+installLogger();
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const axios = require('axios');
-const { launchBrowser, closeBrowser, getActiveCount } = require('./core/browser');
+const { launchBrowser, closeBrowser, getActiveCount, MAX_BROWSERS } = require('./core/browser');
 const { performLoginSequence } = require('./core/auth');
 const { billingWorker, fetchRequestsFromApi, fetchRequestsFromTSS } = require('./core/billingWorker');
 const { getDeviceId } = require('./core/deviceId');
 
-require('dotenv').config(process.env.DOTENV_CONFIG_PATH ? { path: process.env.DOTENV_CONFIG_PATH } : {});
-
 const app = express();
 const PORT = process.env.PORT || 3500;
+
+// Log env fingerprint at startup so you can confirm this process is using fresh .env
+(function logEnvFingerprint() {
+    const envPath = path.resolve(process.cwd(), '.env');
+    let mtime = '';
+    try {
+        const s = fs.statSync(envPath);
+        mtime = new Date(s.mtime).toISOString();
+    } catch (_) {
+        mtime = '(no .env file)';
+    }
+    const maxBrowsers = process.env.MAX_BROWSERS || '15';
+    const defaultBrowsers = process.env.DEFAULT_BROWSERS || '10';
+    console.log(`[Env] Loaded .env (mtime: ${mtime}) → PORT=${PORT}, MAX_BROWSERS=${maxBrowsers}, DEFAULT_BROWSERS=${defaultBrowsers}`);
+})();
 
 // Allow large queue payloads when running "Run current queue" with many items (default is 100kb)
 app.use(express.json({ limit: '10mb' }));
@@ -38,7 +58,7 @@ function eventsHandler(req, res) {
         res.write(`event: queue\ndata: ${JSON.stringify(currentRequests)}\n\n`);
     }
     // Send config (e.g. current browser count; may change during run)
-    res.write(`event: config\ndata: ${JSON.stringify({ browserCount: getActiveCount() })}\n\n`);
+    res.write(`event: config\ndata: ${JSON.stringify({ browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS })}\n\n`);
     if (lastSystemState) {
         res.write(`event: system\ndata: ${JSON.stringify(lastSystemState)}\n\n`);
     }
@@ -75,6 +95,18 @@ setInterval(() => {
 
 app.get('/events', eventsHandler);
 
+// Download log file (copy to user-chosen location via browser Save As). Allowed when unauth for easy access.
+app.get('/api/log-file', (req, res) => {
+    const logPath = getLogPath();
+    if (!fs.existsSync(logPath)) {
+        return res.status(404).json({ error: 'Log file not found' });
+    }
+    const name = `server-log-${new Date().toISOString().slice(0, 10)}.log`;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    res.sendFile(logPath);
+});
+
 // Billing UI (same as index) – ensure reachable at /billing (e.g. localhost:3000/billing)
 app.get('/billing', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
@@ -86,6 +118,12 @@ const AUTHORIZED_DEVICES_URL = (process.env.AUTHORIZED_DEVICES_URL && process.en
 let authorizedDeviceIdsCache = null;
 let authorizedDeviceIdsCacheTime = 0;
 const AUTHORIZED_CACHE_MS = 60 * 1000;
+
+/** Normalize ID for lenient comparison: trim, lowercase, collapse/remove all whitespace. */
+function normalizeDeviceIdForCompare(id) {
+    if (id == null) return '';
+    return String(id).trim().toLowerCase().replace(/\s+/g, '');
+}
 
 async function fetchAuthorizedDeviceIds() {
     if (!AUTHORIZED_DEVICES_URL) return null;
@@ -122,7 +160,8 @@ async function isDeviceAuthorized() {
     const list = await fetchAuthorizedDeviceIds();
     if (list === null) return true; // no URL configured => no restriction
     const deviceId = getDeviceId();
-    return list.includes(deviceId);
+    const normalized = normalizeDeviceIdForCompare(deviceId);
+    return list.some(authorizedId => normalizeDeviceIdForCompare(authorizedId) === normalized);
 }
 
 /** Middleware: reject with 403 and deviceId if this device is not authorized. */
@@ -131,14 +170,16 @@ async function requireAuthorizedDevice(req, res, next) {
         const authorized = await isDeviceAuthorized();
         if (authorized) return next();
         const deviceId = getDeviceId();
-        console.log('[Server] Access denied. Device ID:', deviceId);
+        const ids = await fetchAuthorizedDeviceIds();
+        console.log('[Server] Access denied. Device ID:', deviceId, '— Authorized IDs:', Array.isArray(ids) && ids.length ? ids.join(', ') : '(none)');
         return res.status(403).json({
             error: 'This device is not authorized to run automation.',
             deviceId
         });
     } catch (e) {
         const deviceId = getDeviceId();
-        console.log('[Server] Access denied (error). Device ID:', deviceId);
+        const ids = await fetchAuthorizedDeviceIds().catch(() => []);
+        console.log('[Server] Access denied (error). Device ID:', deviceId, '— Authorized IDs:', Array.isArray(ids) && ids.length ? ids.join(', ') : '(none)');
         return res.status(403).json({
             error: 'Device authorization check failed. Access denied.',
             deviceId
@@ -149,14 +190,18 @@ async function requireAuthorizedDevice(req, res, next) {
 app.get('/device-status', async (req, res) => {
     const deviceId = getDeviceId();
     if (!AUTHORIZED_DEVICES_URL) {
-        return res.json({ deviceId, authorized: true });
+        return res.json({ deviceId, authorized: true, authorizedDeviceIds: [] });
     }
     try {
-        const authorized = await isDeviceAuthorized();
-        return res.json({ deviceId, authorized });
+        const authorizedIds = await fetchAuthorizedDeviceIds();
+        const authorized = Array.isArray(authorizedIds) && authorizedIds.includes(deviceId);
+        if (!authorized) {
+            console.log('[Server] Device not authorized. Device ID:', deviceId, '— Authorized IDs:', authorizedIds && authorizedIds.length ? authorizedIds.join(', ') : '(none)');
+        }
+        return res.json({ deviceId, authorized, authorizedDeviceIds: authorizedIds || [] });
     } catch (e) {
         console.log('[Server] Device status check failed – denying. Device ID:', deviceId);
-        return res.status(500).json({ deviceId, authorized: false, error: 'Could not verify device.' });
+        return res.status(500).json({ deviceId, authorized: false, authorizedDeviceIds: [], error: 'Could not verify device.' });
     }
 });
 
