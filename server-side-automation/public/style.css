@@ -63,6 +63,17 @@ header {
 }
 .btn-open-in-browser:hover { background: var(--bg-elevated); }
 
+.btn-open-config-folder {
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+.btn-open-config-folder:hover { background: var(--bg-elevated); }
+
 .device-unauthorized-banner {
     width: 100%;
     padding: 0.75rem 1rem;
@@ -71,6 +82,25 @@ header {
     border-radius: 0.375rem;
     color: var(--text-main);
     margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.device-unauthorized-banner .btn-refresh-auth {
+    margin-left: auto;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.9rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    color: var(--text-main);
+    cursor: pointer;
+}
+.device-unauthorized-banner .btn-refresh-auth:hover:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
 }
 .controls button:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -199,6 +229,8 @@ h2 { font-size: 1rem; color: var(--text-muted); margin: 0; }
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
+    min-height: 0; /* allow inner scroll areas to shrink and scroll independently */
+    overflow: hidden;
 }
 
 .log-panel-header {
@@ -246,10 +278,17 @@ table {
 th { text-align: left; color: var(--text-muted); padding: 0.5rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-card); }
 td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
 
-.col-select { width: 4.5rem; text-align: center; cursor: crosshair; user-select: none; vertical-align: middle; }
+/* Queue rows: click anywhere to toggle selection */
+#queue-body tr { cursor: pointer; user-select: none; }
+#queue-body tr:hover { background: rgba(255,255,255,0.04); }
+body.shift-mass-select #queue-body tr { cursor: cell; }
+
+.col-select { width: 4.5rem; text-align: center; user-select: none; vertical-align: middle; }
 .col-select .select-actions { display: block; margin-top: 2px; }
 .col-select .link-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.7rem; padding: 0; text-decoration: underline; }
 .col-select .link-btn:hover { color: var(--text); }
+.col-select .shift-hint { display: none; font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; }
+.col-select .shift-hint.visible { display: block; color: var(--accent); }
 .col-orders { width: 4rem; text-align: right; }
 .col-amount { width: 5.5rem; text-align: right; white-space: nowrap; }
 .col-equipment { width: 5rem; text-align: center; }
@@ -278,6 +317,22 @@ td.col-orders { font-variant-numeric: tabular-nums; }
     50% { opacity: 0.6; }
     100% { opacity: 1; }
 }
+
+/* Proof column: links to open proof image(s) in new tab */
+.col-proof { white-space: nowrap; }
+.proof-none { color: var(--text-muted); }
+.proof-link {
+    display: inline-block;
+    padding: 2px 8px;
+    margin-right: 4px;
+    background: var(--accent);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    text-decoration: none;
+}
+.proof-link:hover { opacity: 0.9; color: white; }
+.proof-link:last-of-type { margin-right: 0; }
 
 .line { margin-bottom: 2px; border-bottom: 1px solid #111; padding-bottom: 2px; white-space: pre-wrap; word-break: break-all; }
 .line.dimmed { color: #666; }
@@ -353,3 +408,18 @@ td.col-orders { font-variant-numeric: tabular-nums; }
 .modal-actions button:first-of-type { background: var(--success); }
 .modal-actions button:nth-of-type(2) { background: var(--accent); }
 .modal-actions button:last-of-type { background: var(--bg-dark); color: var(--text-muted); border: 1px solid var(--border); }
+
+/* Print: keep layout and colors so "Save as PDF" looks good */
+@media print {
+    body { background: #fff; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .container { max-width: none; }
+    .controls button:not(#btn-print),
+    .header-badges .badge:not(.connected),
+    #btn-open-in-browser,
+    #btn-open-config-folder,
+    .device-unauthorized-banner,
+    .runners-section { display: none !important; }
+    .summary-bar, .queue-panel, .terminal-panel, .table-container, table { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .queue-panel, .terminal-panel { break-inside: avoid; }
+    .line { border-bottom: 1px solid #ddd; padding: 0.15rem 0; }
+}

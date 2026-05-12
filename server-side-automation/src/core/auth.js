@@ -226,9 +226,13 @@ async function performLoginSequence(email, password, pageOptional, contextOption
         console.error('[Auth] ========== ERROR DURING LOGIN FLOW ==========');
         console.error(`[Auth] Error message: ${e.message}`);
         console.error(`[Auth] Error stack:`, e.stack);
-        console.error(`[Auth] Current URL: ${page.url()}`);
-        console.error('[Auth] Taking error screenshot...');
-        await page.screenshot({ path: 'login_flow_error.png', fullPage: true });
+        try { console.error(`[Auth] Current URL: ${page.url()}`); } catch (_) {}
+        try {
+            console.error('[Auth] Taking error screenshot...');
+            await page.screenshot({ path: 'login_flow_error.png', fullPage: true });
+        } catch (_) {
+            console.error('[Auth] Could not take screenshot (browser/page closed).');
+        }
         return false;
     }
 
@@ -281,20 +285,20 @@ async function performLoginSequence(email, password, pageOptional, contextOption
     } catch (e) {
         console.error('[Auth] ========== FINAL VERIFICATION FAILED ==========');
         console.error(`[Auth] Timeout waiting for redirect: ${e.message}`);
-        const stuckUrl = page.url();
-        console.error(`[Auth] Stuck at URL: ${stuckUrl}`);
-        console.error('[Auth] Taking timeout screenshot...');
-        await page.screenshot({ path: 'login_timeout.png', fullPage: true });
-        
-        // Check if we're actually logged in but just on a different URL
-        const pageContent = await page.content();
-        const hasDashboard = pageContent.includes('dashboard') || pageContent.includes('cases');
-        console.log(`[Auth] Page contains dashboard/cases indicators: ${hasDashboard}`);
-        
-        if (hasDashboard) {
-            console.log('[Auth] ⚠️  May be logged in but URL verification failed');
+        try {
+            const stuckUrl = page.url();
+            console.error(`[Auth] Stuck at URL: ${stuckUrl}`);
+            console.error('[Auth] Taking timeout screenshot...');
+            await page.screenshot({ path: 'login_timeout.png', fullPage: true });
+            const pageContent = await page.content();
+            const hasDashboard = pageContent.includes('dashboard') || pageContent.includes('cases');
+            console.log(`[Auth] Page contains dashboard/cases indicators: ${hasDashboard}`);
+            if (hasDashboard) {
+                console.log('[Auth] May be logged in but URL verification failed');
+            }
+        } catch (_) {
+            console.error('[Auth] Could not inspect page (browser/page closed).');
         }
-        
         return false;
     }
 }

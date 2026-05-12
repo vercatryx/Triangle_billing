@@ -24,6 +24,9 @@ let dragSelect = {
 /** Last row index clicked (for Shift+click range selection). -1 = none yet. */
 let lastClickedIndex = -1;
 
+/** When true, hovering over a row adds it to the selection (hold Shift to activate). */
+let shiftMassSelectMode = false;
+
 // Electron: show "Open in browser" button and wire it
 (function initOpenInBrowser() {
     const btn = document.getElementById('btn-open-in-browser');
@@ -31,54 +34,95 @@ let lastClickedIndex = -1;
         btn.style.display = '';
         btn.addEventListener('click', () => window.electronApi.openInBrowser());
     }
+    const configBtn = document.getElementById('btn-open-config-folder');
+    if (configBtn && typeof window.electronApi !== 'undefined' && typeof window.electronApi.openConfigFolder === 'function') {
+        configBtn.style.display = '';
+        configBtn.addEventListener('click', () => window.electronApi.openConfigFolder());
+    }
+    // Hidden: 5 clicks on device ID badge opens .env in default app (Electron only)
+    const deviceBadge = document.getElementById('device-badge');
+    if (deviceBadge && typeof window.electronApi !== 'undefined' && typeof window.electronApi.openEnvFile === 'function') {
+        let envClickCount = 0;
+        let envClickReset = null;
+        deviceBadge.addEventListener('click', () => {
+            envClickCount += 1;
+            if (envClickReset) clearTimeout(envClickReset);
+            if (envClickCount >= 5) {
+                envClickCount = 0;
+                window.electronApi.openEnvFile();
+            } else {
+                envClickReset = setTimeout(() => { envClickCount = 0; }, 1500);
+            }
+        });
+    }
 })();
 
-// Fetch device authorization status on load. Fail closed: any error = treat as not authorized.
-fetch('/device-status')
-    .then(r => {
-        return r.json().then(d => ({ ok: r.ok, status: r.status, data: d }));
-    })
-    .then(({ ok, status, data: d }) => {
-        deviceId = (d && d.deviceId) ? String(d.deviceId).trim() : '';
-        deviceAuthorized = ok && d && d.authorized === true;
-        const badge = document.getElementById('device-badge');
-        const deviceIdEl = document.getElementById('device-id');
-        if (badge && deviceIdEl) {
-            deviceIdEl.textContent = deviceId || '–';
-            badge.style.display = '';
-            if (!deviceAuthorized) badge.classList.add('unauthorized');
-        }
-        const banner = document.getElementById('device-unauthorized-banner');
-        const unauthIdEl = document.getElementById('unauthorized-device-id');
-        if (banner && unauthIdEl) {
-            if (!deviceAuthorized) {
-                unauthIdEl.textContent = deviceId || '(see server console)';
-                banner.style.display = 'block';
-                setActionButtonsEnabled(false);
-                log(`Access denied. Device ID: ${deviceId || '(unavailable)'}. Add this device to the allowed list or check server connection. (Authorized IDs are in server logs.)`, 'error');
-            } else {
-                banner.style.display = 'none';
-                setActionButtonsEnabled(true);
+/** Recheck device authorization (used on load and when user clicks Refresh in unauthorized banner). */
+function checkDeviceStatus() {
+    const refreshBtn = document.getElementById('btn-refresh-auth');
+    if (refreshBtn) {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Checking…';
+    }
+    return fetch('/device-status')
+        .then(r => r.json().then(d => ({ ok: r.ok, status: r.status, data: d })))
+        .then(({ ok, status, data: d }) => {
+            deviceId = (d && d.deviceId) ? String(d.deviceId).trim() : '';
+            deviceAuthorized = ok && d && d.authorized === true;
+            const badge = document.getElementById('device-badge');
+            const deviceIdEl = document.getElementById('device-id');
+            if (badge && deviceIdEl) {
+                deviceIdEl.textContent = deviceId || '–';
+                badge.style.display = '';
+                if (!deviceAuthorized) badge.classList.add('unauthorized');
+                else badge.classList.remove('unauthorized');
             }
-        }
-    })
-    .catch(() => {
-        deviceAuthorized = false;
-        deviceId = '';
-        setActionButtonsEnabled(false);
-        const banner = document.getElementById('device-unauthorized-banner');
-        const unauthIdEl = document.getElementById('unauthorized-device-id');
-        if (banner && unauthIdEl) {
-            unauthIdEl.textContent = '(could not verify – see server console)';
-            banner.style.display = 'block';
-        }
-        const badge = document.getElementById('device-badge');
-        if (badge) badge.classList.add('unauthorized');
-        log('Could not verify device. Access denied.', 'error');
-    });
+            const banner = document.getElementById('device-unauthorized-banner');
+            const unauthIdEl = document.getElementById('unauthorized-device-id');
+            if (banner && unauthIdEl) {
+                if (!deviceAuthorized) {
+                    unauthIdEl.textContent = deviceId || '(see server console)';
+                    banner.style.display = 'block';
+                    setActionButtonsEnabled(false);
+                    log(`Access denied. Device ID: ${deviceId || '(unavailable)'}. Add this device to the allowed list or check server connection. (Authorized IDs are in server logs.)`, 'error');
+                } else {
+                    banner.style.display = 'none';
+                    setActionButtonsEnabled(true);
+                    log('Device is now authorized. You can use automation.', 'success');
+                }
+            }
+        })
+        .catch(() => {
+            deviceAuthorized = false;
+            deviceId = '';
+            setActionButtonsEnabled(false);
+            const banner = document.getElementById('device-unauthorized-banner');
+            const unauthIdEl = document.getElementById('unauthorized-device-id');
+            if (banner && unauthIdEl) {
+                unauthIdEl.textContent = '(could not verify – see server console)';
+                banner.style.display = 'block';
+            }
+            const badge = document.getElementById('device-badge');
+            if (badge) badge.classList.add('unauthorized');
+            log('Could not verify device. Access denied.', 'error');
+        })
+        .finally(() => {
+            if (refreshBtn) {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh';
+            }
+        });
+}
+
+// Fetch device authorization status on load. Fail closed: any error = treat as not authorized.
+checkDeviceStatus();
+
+document.getElementById('btn-refresh-auth')?.addEventListener('click', function () {
+    checkDeviceStatus();
+});
 
 function setActionButtonsEnabled(enabled) {
-    const ids = ['btn-run-queue', 'btn-load-file', 'btn-download', 'btn-import-excel', 'btn-stop', 'excel-save-file'];
+    const ids = ['btn-run-queue', 'btn-load-file', 'btn-download', 'btn-import-excel', 'btn-stop', 'excel-save-file', 'btn-print', 'btn-export-excel'];
     ids.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = !enabled;
@@ -113,6 +157,16 @@ function connectSSE() {
         statusBadge.className = 'badge connected';
         sseReconnectDelay = 1000; // reset backoff on successful connect
         log('System connected to server.');
+        fetch('/api/port').then(r => r.ok ? r.json() : {}).then(d => {
+            const port = d && Number.isFinite(d.port) ? d.port : null;
+            const hint = document.getElementById('port-hint');
+            const numEl = document.getElementById('port-number');
+            if (hint && numEl && port != null && port !== 3500) {
+                numEl.textContent = port;
+                hint.style.display = '';
+                hint.title = 'Server is using port ' + port + ' (e.g. if default was in use). Set PORT=' + port + ' in .env to use it next time.';
+            }
+        }).catch(() => {});
     };
 
     evtSource.addEventListener('config', (e) => {
@@ -188,6 +242,24 @@ function onRunnersEvent(e) {
 }
 
 connectSSE();
+
+// Shift key: activate mass-select mode (hover to add rows to selection)
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Shift' && !shiftMassSelectMode) {
+        shiftMassSelectMode = true;
+        document.body.classList.add('shift-mass-select');
+        const hint = document.getElementById('shift-hint');
+        if (hint) hint.classList.add('visible');
+    }
+});
+document.addEventListener('keyup', function (e) {
+    if (e.key === 'Shift') {
+        shiftMassSelectMode = false;
+        document.body.classList.remove('shift-mass-select');
+        const hint = document.getElementById('shift-hint');
+        if (hint) hint.classList.remove('visible');
+    }
+});
 
 filterStatusEl.addEventListener('change', () => applyFilterAndRender());
 
@@ -311,7 +383,7 @@ function triggerProcess(source) {
 }
 
 function downloadCloudRequests() {
-    log('Fetching pending requests from TSS API (Preview)...', 'info');
+    log('Fetching from server and saving to billing file (Load from File will use this)...', 'info');
     document.getElementById('queue-body').innerHTML = ''; // Clear previous
 
     fetch('/fetch-requests', {
@@ -327,9 +399,9 @@ function downloadCloudRequests() {
             if (d && d.error) {
                 log(`Fetch Error: ${d.error}`, 'error');
             } else if (d) {
-                log(`Fetched ${d.count} requests from TSS API.`, 'success');
-                // Apply queue from response so clients show even when SSE is disconnected (e.g. Electron)
-                if (Array.isArray(d.requests) && d.requests.length > 0) {
+                log(d.message || `Fetched ${d.count} requests (saved to file).`, 'success');
+                // Always apply queue from response (merged list = file content) so UI matches what was saved
+                if (Array.isArray(d.requests)) {
                     allRequests = d.requests;
                     syncFilterOptions(allRequests);
                     applyFilterAndRender();
@@ -426,6 +498,10 @@ function renderQueue(requests) {
         const isEquipment = req.equipment === true || req.equipment === 'true' || req.equtment === true || req.equtment === 'true';
         const equipmentCell = isEquipment ? '<span class="equipment-badge">Yes</span>' : '–';
 
+        const proofUrls = req.proofURL != null
+            ? (Array.isArray(req.proofURL) ? req.proofURL.filter(u => u && String(u).trim()) : [String(req.proofURL).trim()].filter(Boolean))
+            : [];
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="col-select"><input type="checkbox" class="row-select" data-index="${idx}" ${isSelected ? 'checked' : ''} aria-label="Select row"></td>
@@ -434,9 +510,27 @@ function renderQueue(requests) {
             <td class="col-amount">${amountStr}</td>
             <td>${req.start ? `${escapeHtml(req.start)} → ${escapeHtml(req.end)}` : (req.date ? escapeHtml(req.date) : '-')}</td>
             <td class="col-equipment">${equipmentCell}</td>
+            <td class="col-proof">${proofUrls.length === 0 ? '<span class="proof-none">–</span>' : ''}</td>
             <td><span class="status-badge ${statusClass}">${escapeHtml(status)}</span></td>
             <td style="font-size:0.85em; color:#ccc">${escapeHtml(req.message || '-')}</td>
         `;
+        if (proofUrls.length > 0) {
+            const proofTd = tr.querySelector('.col-proof');
+            proofUrls.forEach((url, i) => {
+                const a = document.createElement('a');
+                a.href = url;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.className = 'proof-link';
+                a.title = url;
+                a.textContent = proofUrls.length > 1 ? `View ${i + 1}` : 'View';
+                a.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                });
+                proofTd.appendChild(a);
+                if (i < proofUrls.length - 1) proofTd.appendChild(document.createTextNode(' '));
+            });
+        }
         const cb = tr.querySelector('.row-select');
         cb.addEventListener('change', function () {
             const i = parseInt(this.getAttribute('data-index'), 10);
@@ -449,6 +543,26 @@ function renderQueue(requests) {
         if (selectCell) {
             selectCell.addEventListener('mousedown', onSelectCellMouseDown);
         }
+        // Click anywhere on the row to toggle selection (skip if click was on the checkbox)
+        tr.addEventListener('click', function (e) {
+            if (e.target.closest('.row-select')) return;
+            const i = getRowIndexFromElement(e.target);
+            if (i < 0) return;
+            setRowSelected(i, !selectedIndices.has(i));
+            lastClickedIndex = i;
+            updateTotalAmount();
+            updateSelectAllState();
+        });
+        // Shift + hover: add row to selection
+        tr.addEventListener('mouseenter', function () {
+            if (!shiftMassSelectMode) return;
+            const i = getRowIndexFromElement(tr);
+            if (i >= 0) {
+                setRowSelected(i, true);
+                updateTotalAmount();
+                updateSelectAllState();
+            }
+        });
         queueBody.appendChild(tr);
     });
     updateSelectAllState();
@@ -576,23 +690,61 @@ let excelSheetData = null; // { headers: string[], rows: any[][] }
 
 function normalizeDate(val) {
     if (val == null || String(val).trim() === '') return '';
+    const fmt = (m, d, y) => `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}-${y}`;
+
+    if (val instanceof Date && !isNaN(val.getTime())) {
+        return fmt(val.getMonth() + 1, val.getDate(), val.getFullYear());
+    }
+
     const s = String(val).trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+    // Excel serial number – use UTC to avoid timezone shifting the date
     const n = Number(val);
-    if (Number.isFinite(n) && n > 0) {
+    if (Number.isFinite(n) && n > 0 && n < 2958466 && String(val) === String(n)) {
         const d = new Date((n - 25569) * 86400000);
         if (!Number.isNaN(d.getTime())) {
-            const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
+            return fmt(d.getUTCMonth() + 1, d.getUTCDate(), d.getUTCFullYear());
         }
     }
-    const slash = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if (slash) {
-        const [, a, b, y] = slash;
-        const m = a.length === 2 ? a : b;
-        const d = a.length === 2 ? b : a;
-        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+
+    // Already MM-DD-YYYY
+    const already = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (already) {
+        const m = parseInt(already[1], 10), d = parseInt(already[2], 10);
+        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) return s;
     }
+
+    // YYYY-MM-DD or YYYY/MM/DD — convert to MM-DD-YYYY, auto-swap if month > 12
+    const ymd = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+    if (ymd) {
+        let y = parseInt(ymd[1], 10), a = parseInt(ymd[2], 10), b = parseInt(ymd[3], 10);
+        if (a > 12 && b <= 12) return fmt(b, a, y);
+        if (a >= 1 && a <= 12 && b >= 1 && b <= 31) return fmt(a, b, y);
+    }
+
+    // D/M/YYYY, DD/MM/YYYY, M/D/YYYY — with 4-digit year
+    const dmy4 = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if (dmy4) {
+        const aNum = parseInt(dmy4[1], 10), bNum = parseInt(dmy4[2], 10), y = parseInt(dmy4[3], 10);
+        let day, month;
+        if (aNum > 12 && bNum <= 12)      { day = aNum; month = bNum; }
+        else if (bNum > 12 && aNum <= 12) { month = aNum; day = bNum; }
+        else                               { day = aNum; month = bNum; }
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return fmt(month, day, y);
+    }
+
+    // D/M/YY, DD/MM/YY, M/D/YY — with 2-digit year
+    const dmy2 = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2})$/);
+    if (dmy2) {
+        const aNum = parseInt(dmy2[1], 10), bNum = parseInt(dmy2[2], 10);
+        const y = 2000 + parseInt(dmy2[3], 10);
+        let day, month;
+        if (aNum > 12 && bNum <= 12)      { day = aNum; month = bNum; }
+        else if (bNum > 12 && aNum <= 12) { month = aNum; day = bNum; }
+        else                               { month = aNum; day = bNum; }
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return fmt(month, day, y);
+    }
+
     return s;
 }
 
@@ -618,13 +770,26 @@ function buildRequestsFromExcel(mapping) {
     const requests = [];
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        const url = urlCol < row.length ? String(row[urlCol] ?? '').trim() : '';
+        let url = urlCol < row.length ? String(row[urlCol] ?? '').trim() : '';
+        if (excelSheetData.hyperlinks) {
+            const urlCellAddr = XLSX.utils.encode_cell({ r: i + 1, c: urlCol });
+            if (excelSheetData.hyperlinks[urlCellAddr]) {
+                url = excelSheetData.hyperlinks[urlCellAddr].trim();
+            }
+        }
         const dateRaw = dateCol < row.length ? row[dateCol] : '';
         const dateStr = dateRaw != null ? String(dateRaw).trim() : '';
         if (!url || (dateStr === '' && dateRaw !== 0)) continue;
         const amountVal = amountCol < row.length ? row[amountCol] : 0;
         const amount = typeof amountVal === 'number' ? amountVal : Number(String(amountVal).replace(/[^\d.-]/g, '')) || 0;
-        const proofURL = proofCol < row.length ? String(row[proofCol] ?? '').trim() : '';
+        let proofURL = proofCol < row.length ? String(row[proofCol] ?? '').trim() : '';
+        // Prefer the hyperlink target over the display text (handles HYPERLINK() formulas)
+        if (excelSheetData.hyperlinks) {
+            const cellAddr = XLSX.utils.encode_cell({ r: i + 1, c: proofCol });
+            if (excelSheetData.hyperlinks[cellAddr]) {
+                proofURL = excelSheetData.hyperlinks[cellAddr].trim();
+            }
+        }
         const equipment = eqCol < row.length ? isEquipmentTrue(row[eqCol]) : false;
         const normalizedDate = normalizeDate(dateRaw);
         if (!normalizedDate) continue;
@@ -692,6 +857,190 @@ function closeExcelImportModal() {
 
 document.getElementById('btn-import-excel').addEventListener('click', () => document.getElementById('excel-file-input').click());
 
+/**
+ * Export the currently filtered queue as PDF.
+ */
+function exportQueueAsPDF() {
+    if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
+        log('PDF library not loaded.', 'error');
+        return;
+    }
+    if (allRequests.length === 0) {
+        log('No queue data to export. Load from file or server first.', 'error');
+        return;
+    }
+    const status = (filterStatusEl.value || '').trim();
+    const norm = (s) => (s != null && String(s).trim() !== '' ? String(s).trim() : 'pending');
+    const exportList = status ? allRequests.filter(r => norm(r.status) === status) : allRequests;
+    if (exportList.length === 0) {
+        log('No items match the current filter.', 'error');
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const filterLabel = status ? ` (filter: ${status})` : '';
+    const headers = ['Client', 'Orders', 'Amount', 'Dates', 'Equipment', 'Status', 'Message'];
+    const rows = exportList.map(req => {
+        const orderCount = getOrderCount(req);
+        const amount = getAmountNum(req);
+        const amountStr = amount > 0 ? '$' + amount.toFixed(2) : '-';
+        const isEquipment = req.equipment === true || req.equipment === 'true' || req.equtment === true || req.equtment === 'true';
+        const dates = req.start ? `${req.start} → ${req.end}` : (req.date || '-');
+        return [
+            String(req.name ?? ''),
+            String(orderCount),
+            amountStr,
+            String(dates),
+            isEquipment ? 'Yes' : '–',
+            String(req.status ?? 'pending'),
+            String(req.message ?? '')
+        ];
+    });
+    doc.setFontSize(14);
+    doc.text('Billing queue export' + filterLabel, 14, 16);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()} — ${exportList.length} item(s)`, 14, 22);
+    doc.autoTable({
+        head: [headers],
+        body: rows,
+        startY: 26,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [80, 80, 80] }
+    });
+    const blob = doc.output('blob');
+    const defaultName = `billing-queue-${new Date().toISOString().slice(0, 10)}.pdf`;
+    if (typeof window.electronApi !== 'undefined' && typeof window.electronApi.savePDF === 'function') {
+        log('Exporting queue as PDF...', 'info');
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const base64 = reader.result.split(',')[1];
+            const result = await window.electronApi.savePDF(base64, defaultName);
+            if (result && result.ok) {
+                log(`PDF saved: ${result.path}`, 'success');
+            } else if (result && result.canceled) {
+                log('Save canceled.', 'info');
+            } else {
+                log(result && result.error ? `PDF save failed: ${result.error}` : 'PDF save failed.', 'error');
+            }
+        };
+        reader.readAsDataURL(blob);
+    } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = defaultName;
+        a.click();
+        URL.revokeObjectURL(url);
+        log(`PDF downloaded: ${defaultName} (${exportList.length} items)`, 'success');
+    }
+}
+
+document.getElementById('btn-print').addEventListener('click', function () {
+    exportQueueAsPDF();
+});
+
+function exportQueueAsExcel() {
+    if (typeof XLSX === 'undefined') {
+        log('Excel library not loaded.', 'error');
+        return;
+    }
+    if (allRequests.length === 0) {
+        log('No queue data to export. Load from file or server first.', 'error');
+        return;
+    }
+    const status = (filterStatusEl.value || '').trim();
+    const norm = (s) => (s != null && String(s).trim() !== '' ? String(s).trim() : 'pending');
+    const exportList = status ? allRequests.filter(r => norm(r.status) === status) : allRequests;
+    if (exportList.length === 0) {
+        log('No items match the current filter.', 'error');
+        return;
+    }
+
+    const parseToExcelDate = (str) => {
+        if (!str) return '';
+        const parts = String(str).split(/[\/\-.]/).map(Number);
+        if (parts.length !== 3) return str;
+        let m, d, y;
+        if (parts[2] >= 2000) { m = parts[0]; d = parts[1]; y = parts[2]; }
+        else if (parts[0] >= 2000) { y = parts[0]; m = parts[1]; d = parts[2]; }
+        else return str;
+        if (m > 12 && d <= 12) { [m, d] = [d, m]; }
+        const dt = new Date(y, m - 1, d);
+        return isNaN(dt.getTime()) ? str : dt;
+    };
+
+    const rows = exportList.map(req => {
+        const amount = getAmountNum(req);
+        const isEquipment = req.equipment === true || req.equipment === 'true' || req.equtment === true || req.equtment === 'true';
+        return {
+            'Client': req.name || '',
+            'URL': req.url || '',
+            'Date': parseToExcelDate(req.date),
+            'Start Date': parseToExcelDate(req.start),
+            'End Date': parseToExcelDate(req.end),
+            'Amount': amount,
+            'Equipment': isEquipment ? 'Yes' : 'No',
+            'Proof URL': Array.isArray(req.proofURL) ? req.proofURL.join(', ') : (req.proofURL || ''),
+            'Status': req.status || 'pending',
+            'Message': req.message || ''
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    const dateColIndices = [2, 3, 4];
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = range.s.r + 1; R <= range.e.r; R++) {
+        for (const C of dateColIndices) {
+            const addr = XLSX.utils.encode_cell({ r: R, c: C });
+            const cell = ws[addr];
+            if (cell && cell.v instanceof Date) {
+                cell.t = 'd';
+                cell.z = 'mm/dd/yyyy';
+            }
+        }
+    }
+
+    ws['!cols'] = [
+        { wch: 20 }, { wch: 50 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+        { wch: 10 }, { wch: 10 }, { wch: 50 }, { wch: 10 }, { wch: 30 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Billing Queue');
+    const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbOut], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    const defaultName = `billing-queue-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    if (typeof window.electronApi !== 'undefined' && typeof window.electronApi.saveExcel === 'function') {
+        log('Exporting queue as Excel...', 'info');
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const base64 = reader.result.split(',')[1];
+            const result = await window.electronApi.saveExcel(base64, defaultName);
+            if (result && result.ok) {
+                log(`Excel saved: ${result.path}`, 'success');
+            } else if (result && result.canceled) {
+                log('Save canceled.', 'info');
+            } else {
+                log('Save failed: ' + ((result && result.error) || 'unknown'), 'error');
+            }
+        };
+        reader.readAsDataURL(blob);
+    } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = defaultName;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        log(`Downloaded ${defaultName} (${exportList.length} items).`, 'success');
+    }
+}
+
+document.getElementById('btn-export-excel').addEventListener('click', function () {
+    exportQueueAsExcel();
+});
+
 document.getElementById('btn-save-log').addEventListener('click', async function () {
     try {
         const r = await fetch('/api/log-file');
@@ -733,9 +1082,22 @@ document.getElementById('excel-file-input').addEventListener('change', function 
                 log('Excel sheet is empty.', 'error');
                 return;
             }
+            // Extract hyperlink targets from worksheet cells so we can
+            // recover URLs that Excel stores as HYPERLINK() formulas.
+            const hyperlinks = {};
+            const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+            for (let R = range.s.r; R <= range.e.r; R++) {
+                for (let C = range.s.c; C <= range.e.c; C++) {
+                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                    const cell = ws[addr];
+                    if (cell && cell.l && cell.l.Target) {
+                        hyperlinks[addr] = cell.l.Target;
+                    }
+                }
+            }
             const headers = raw[0].map((c, i) => (c != null && String(c).trim() !== '') ? String(c).trim() : `Column ${i + 1}`);
             const rows = raw.slice(1);
-            excelSheetData = { headers, rows };
+            excelSheetData = { headers, rows, hyperlinks };
             log(`Loaded Excel: ${rows.length} rows, columns: ${headers.join(', ')}`, 'info');
             openExcelImportModal();
         } catch (err) {

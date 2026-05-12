@@ -33,7 +33,13 @@ login_timeout.png
 # Embedded Node runtime (downloaded by scripts/download-node.js)
 node-runtime/
 
+# Playwright browsers (installed by scripts/install-playwright-browsers.js for packaging)
+playwright-browsers/
+
 # Build / output (if you add any later)
 dist/
 build/
 coverage/
+
+# Local test runs / generated proofs
+test-output/

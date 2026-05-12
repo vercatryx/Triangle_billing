@@ -16,7 +16,9 @@
                 <span id="device-badge" class="badge badge-muted" title="This computer's device ID" style="display: none;">Device: <b id="device-id">–</b></span>
                 <span id="browser-count" class="badge badge-muted" title="Active / max parallel browser slots">Browsers: <b id="browser-count-n">–</b> / <b id="max-browsers-n">–</b></span>
                 <div id="connection-status" class="badge">Connecting...</div>
+                <span id="port-hint" class="badge badge-muted" title="Server port (shown when not default)" style="display: none;">Port: <b id="port-number">–</b></span>
                 <button type="button" id="btn-open-in-browser" class="btn-open-in-browser" title="Open this app in your default browser" style="display: none;">🌐 Open in browser</button>
+                <button type="button" id="btn-open-config-folder" class="btn-open-config-folder" title="Open folder containing .env (edit credentials, PORT, etc.). Restart the app after editing." style="display: none;">📁 Open config folder</button>
             </div>
         </header>
 
@@ -37,6 +39,7 @@
         <section class="controls" id="controls-section">
             <div id="device-unauthorized-banner" class="device-unauthorized-banner" style="display: none;">
                 This device is not authorized. Device ID: <strong id="unauthorized-device-id"></strong> — add it to the allowed list to use automation.
+                <button type="button" id="btn-refresh-auth" class="btn-refresh-auth" title="Recheck authorization">🔄 Refresh</button>
             </div>
             <button id="btn-run-queue" onclick="runCurrentQueue()" style="background: #10b981;">▶ Run current queue</button>
             <button id="btn-load-file" onclick="loadFromFile()">📂 Load from File</button>
@@ -45,6 +48,8 @@
             <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
             <button id="btn-stop" onclick="stopProcess()" 
                 style="background: #ef4444; display: none;">⏹ Stop Process</button>
+            <button id="btn-print" type="button" title="Export full queue (all names and info) as PDF">🖨 Export as PDF</button>
+            <button id="btn-export-excel" type="button" title="Export full queue as Excel spreadsheet">📊 Export as Excel</button>
 
             <div class="stats">
                 <span>Total: <b id="stat-total">0</b></span>
@@ -69,15 +74,17 @@
                     <table>
                         <thead>
                             <tr>
-                                <th class="col-select" title="Select all visible / Shift+click or drag for range">
+                                <th class="col-select" title="Click row to select • Hold Shift and hover to add">
                                     <input type="checkbox" id="select-all" title="Select all visible" aria-label="Select all">
                                     <span class="select-actions"><button type="button" id="select-none" class="link-btn" title="Clear selection">None</button></span>
+                                    <span id="shift-hint" class="shift-hint" aria-live="polite">Hold Shift, hover to add</span>
                                 </th>
                                 <th>Client</th>
                                 <th class="col-orders">Orders</th>
                                 <th class="col-amount">Amount</th>
                                 <th>Dates</th>
                                 <th class="col-equipment">Equipment</th>
+                                <th class="col-proof">Proof</th>
                                 <th>Status</th>
                                 <th>Message</th>
                             </tr>
@@ -122,6 +129,8 @@
         </div>
     </div>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script src="/client.js"></script>
 </body>
 

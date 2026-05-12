@@ -2,10 +2,36 @@
 // It uses page.evaluate() to inject the exact same robust logic into the browser.
 // All Unite DOM selectors/IDs come from uniteSelectors.billing – edit that file when the site updates.
 
+const fs = require('fs');
 const uniteSelectors = require('./uniteSelectors');
 
 async function executeBillingOnPage(page, requestData) {
     console.log('[BillingActions] Injecting billing logic...');
+
+    // Build data for injection; pre-downloaded proofs (Firebase/Drive) become base64 payloads
+    const data = { ...requestData };
+    if (requestData.proofDownloadedMeta && requestData.proofDownloadedMeta.length) {
+        data.proofFilePayloads = [];
+        const proofURLs = Array.isArray(requestData.proofURL) ? requestData.proofURL : (requestData.proofURL ? [requestData.proofURL] : []);
+        for (let i = 0; i < requestData.proofDownloadedMeta.length; i++) {
+            const meta = requestData.proofDownloadedMeta[i];
+            if (meta && meta.path && fs.existsSync(meta.path)) {
+                const buf = fs.readFileSync(meta.path);
+                data.proofFilePayloads[i] = {
+                    base64: buf.toString('base64'),
+                    filename: meta.filename,
+                    mimeType: meta.contentType || 'application/octet-stream'
+                };
+            } else if (proofURLs[i]) {
+                // Server tried to download this URL and failed (e.g. 403, redirect). Do NOT pass URL
+                // as fallback — browser fetch would hit CORS (e.g. dashboard.scanovator.com).
+                const reason = (requestData.proofDownloadErrors && requestData.proofDownloadErrors[i]) || 'Download failed';
+                data.proofFilePayloads[i] = { downloadFailed: true, reason };
+            } else {
+                data.proofFilePayloads[i] = null;
+            }
+        }
+    }
 
     try {
         const sel = uniteSelectors.billing;
@@ -16,6 +42,13 @@ async function executeBillingOnPage(page, requestData) {
             // =========================================================================
 
             console.log('[Injected] Starting billing logic for:', data);
+
+            // Bail immediately if the page is a login/auth page (session expired)
+            const currentHost = window.location.hostname || '';
+            const currentHref = window.location.href || '';
+            if (currentHost.includes('auth') || currentHref.includes('/login') || currentHref.includes('/sign-in')) {
+                return { ok: false, error: 'Session expired — redirected to login page', loggedOut: true };
+            }
 
             // --- Helpers ---
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -60,13 +93,22 @@ async function executeBillingOnPage(page, requestData) {
                 return `${mm}/${dd}/${yy}`;
             };
 
+            // Red error messages on page (p.text-red.text-13px) – check often so we report real reason, not technical failure
+            const getPageError = () => {
+                const errorParagraphs = document.querySelectorAll('p.text-red.text-13px');
+                if (errorParagraphs.length > 0) {
+                    const msg = errorParagraphs[0].textContent.trim();
+                    if (msg) return msg;
+                }
+                return null;
+            };
+
             // --- Inputs ---
-            // Data comes in ISO format from JSON usually: YYYY-MM-DD
+            // Dates are in MM-DD-YYYY format
             const startStr = data.start;
             const endStr = data.end;
-            // Parse them to MDY for internal logic
-            const [sY, sM, sD] = startStr.split('-').map(Number);
-            const [eY, eM, eD] = endStr.split('-').map(Number);
+            const [sM, sD, sY] = startStr.split('-').map(Number);
+            const [eM, eD, eY] = endStr.split('-').map(Number);
             const reqStart = new Date(sY, sM - 1, sD);
             const reqEnd = new Date(eY, eM - 1, eD);
             // USER REQUEST: Do not calculate amount. Use JSON amount directly.
@@ -137,59 +179,15 @@ async function executeBillingOnPage(page, requestData) {
             }
 
             const { dateEl, amountEl } = getAuthEls();
-            if (!dateEl || !amountEl) {
-                console.warn('[Injected] Authorized table elements not found. Continuing, but risks are high.');
+            if (dateEl && amountEl) {
+                console.log('[Injected] Authorized table found. Entering dates as-is — Unite will show errors if out of range.');
             } else {
-                console.log('[Injected] Authorized table found. Verifying limits...');
-                // Parse limits
-                // Date format usually: "8/27/2025 - 2/27/2026"
-                const dateText = dateEl.innerText || '';
-                const [startStr, endStr] = dateText.split('-').map(s => s.trim());
-                const authStart = parseMDY(startStr);
-                const authEnd = parseMDY(endStr);
-
-                // Amount format usually: $7,824.00 inside a span
-                const amountText = (amountEl.innerText || '').replace(/[$,]/g, '');
-                const authAmount = parseFloat(amountText);
-
-                console.log(`[Injected] Limits: ${toMDY(authStart)} - ${toMDY(authEnd)}, Max: $${authAmount}`);
-
-                // --- CLAMPING LOGIC (Extension Port) ---
-                if (authStart && authEnd) {
-                    // CLAMPING DEBUG LOGS
-                    console.log(`[Clamping-Debug] Original Req Start: ${toMDY(reqStart)} (${reqStart.toISOString()})`);
-                    console.log(`[Clamping-Debug] Original Req End:   ${toMDY(reqEnd)} (${reqEnd.toISOString()})`);
-                    console.log(`[Clamping-Debug] Auth Window:        ${toMDY(authStart)} to ${toMDY(authEnd)}`);
-
-                    // Clamp start
-                    if (reqStart < authStart) {
-                        console.warn(`[Clamping] Requested start ${toMDY(reqStart)} is BEFORE auth start ${toMDY(authStart)}. Adjusting to ${toMDY(authStart)}.`);
-                        reqStart.setTime(authStart.getTime());
-                    }
-                    // Clamp end
-                    if (reqEnd > authEnd) {
-                        console.warn(`[Clamping] Requested end ${toMDY(reqEnd)} is AFTER auth end ${toMDY(authEnd)}. Adjusting to ${toMDY(authEnd)}.`);
-                        reqEnd.setTime(authEnd.getTime());
-                    }
-
-                    console.log(`[Clamping-Debug] Final Req Start:    ${toMDY(reqStart)}`);
-                    console.log(`[Clamping-Debug] Final Req End:      ${toMDY(reqEnd)}`);
-
-                    // Fix overlap
-                    if (reqStart > reqEnd) {
-                        return { ok: false, error: `Clamped dates invalid: ${toMDY(reqStart)} > ${toMDY(reqEnd)}` };
-                    }
-
-                    // Amount Clamping (Logic Removed - User wants Raw Amount)
-                    // We verify against Total Auth, but do not recalc 'projected amount'.
-                    if (amount > authAmount) {
-                        console.warn(`[Clamping] WARNING: Requested amount $${amount} > Auth Max $${authAmount}. Proceeding as requested, but might fail.`);
-                    }
-                }
+                console.warn('[Injected] Authorized table elements not found. Continuing anyway.');
             }
 
 
             // --- 1. Find Add Button & Open Shelf ---
+            { const err = getPageError(); if (err) return { ok: false, error: err }; }
             const ab = sel.addButton;
             const findAddButton = () => {
                 let btn = (ab.id && document.getElementById(ab.id)) || (ab.xpath && byXPath(ab.xpath));
@@ -206,7 +204,7 @@ async function executeBillingOnPage(page, requestData) {
                 await sleep(500);
             }
 
-            if (!addBtn) return { ok: false, error: 'Add button not found (Shelf trigger missing)' };
+            if (!addBtn) { const err = getPageError(); return { ok: false, error: err || 'Add button not found (Shelf trigger missing)' }; }
 
             const am = sel.amount;
             const isShelfOpen = () => !!((am.id && document.getElementById(am.id)) || (am.xpath && byXPath(am.xpath)));
@@ -219,7 +217,7 @@ async function executeBillingOnPage(page, requestData) {
                     if (isShelfOpen()) break;
                     await sleep(200);
                 }
-                if (!isShelfOpen()) return { ok: false, error: 'Shelf did not open' };
+                if (!isShelfOpen()) { const err = getPageError(); return { ok: false, error: err || 'Shelf did not open' }; }
             }
 
             // --- 2. Calculate & Verify Dates ---
@@ -229,12 +227,13 @@ async function executeBillingOnPage(page, requestData) {
             console.log(`[Step] Amount (Explicit): $${amount}`);
 
             if (days < 1) {
-                return { ok: false, error: `Invalid date range: ${days} days` };
+                const err = getPageError(); return { ok: false, error: err || `Invalid date range: ${days} days` };
             }
 
             // --- 3. Fill Billing Info ---
+            { const err = getPageError(); if (err) return { ok: false, error: err }; }
             const amountField = (am.id && document.getElementById(am.id)) || (am.xpath && byXPath(am.xpath));
-            if (!amountField) return { ok: false, error: 'Amount field missing' };
+            if (!amountField) { const err = getPageError(); return { ok: false, error: err || 'Amount field missing' }; }
 
             // Use the exact amount from JSON - no calculation, no multiplication, no modification
             // Convert to number to ensure proper formatting, then back to string for the input
@@ -257,6 +256,7 @@ async function executeBillingOnPage(page, requestData) {
             await sleep(500);
 
             // --- 4. Date Picker Logic (The Beast) ---
+            { const err = getPageError(); if (err) return { ok: false, error: err }; }
             // Period of Service: "Single Date" (equipment) or "Date Range" (default). We select the radio first; only then open the range picker for non-equipment.
             const isEquipment = data.equipment === true || data.equipment === 'true' || data.equtment === true || data.equtment === 'true';
             console.log(isEquipment ? '[Step] Setting date (equipment: Single Date).' : '[Step] Setting Date Range in UI...');
@@ -526,12 +526,13 @@ async function executeBillingOnPage(page, requestData) {
 
             const dateResult = await setDateForRequest(dateParams.start, dateParams.end, isEquipment);
             if (!dateResult) {
-                return { ok: false, error: 'Failed to set date range in UI' };
+                const err = getPageError(); return { ok: false, error: err || 'Failed to set date range in UI' };
             }
 
             console.log('[Step] Date step complete.');
 
             // --- 4. Place of Service Logic (The Beast Part 2) ---
+            { const err = getPageError(); if (err) return { ok: false, error: err }; }
             console.log('[Step] Setting Place of Service (12 - Home)...');
 
             async function selectHomeRobust() {
@@ -660,26 +661,73 @@ async function executeBillingOnPage(page, requestData) {
 
             const homeSuccess = await selectHomeRobust();
             if (!homeSuccess) {
-                return { ok: false, error: 'Failed to select Place of Service (12 - Home)' };
+                const err = getPageError(); return { ok: false, error: err || 'Failed to select Place of Service (12 - Home)' };
             }
 
-            // --- 5. File Upload Logic (Browser-Side Fetch) ---
+            // --- 5. File Upload Logic (Browser-Side Fetch or pre-downloaded payload) ---
             const proofUrls = Array.isArray(data.proofURL) ? data.proofURL : (data.proofURL ? [data.proofURL] : []);
+            const proofFilePayloads = data.proofFilePayloads || [];
             if (proofUrls.length > 0) {
-                console.log(`[Step] Uploading ${proofUrls.length} proof file(s) from URL(s)...`);
+                { const err = getPageError(); if (err) return { ok: false, error: err }; }
+                console.log(`[Step] Uploading ${proofUrls.length} proof file(s)...`);
 
-                async function uploadFileRobust(url, filename) {
+                async function uploadFileRobust(source, filename) {
                     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-                    // 1. Fetch Blob (using browser session)
+                    // 1. Get Blob: only from pre-downloaded base64. Never fetch(url) for cross-origin (CORS).
+                    if (source.downloadFailed) {
+                        const reason = source.reason || 'Proof could not be downloaded on server.';
+                        console.error('[Upload] Proof download failed:', reason);
+                        return { failed: true, reason };
+                    }
+                    // Detect real file type from magic bytes so the MIME and
+                    // extension always match the actual content.
+                    function detectMime(bytes) {
+                        if (!bytes || bytes.length < 12) return null;
+                        if (bytes[0]===0xFF && bytes[1]===0xD8 && bytes[2]===0xFF) return 'image/jpeg';
+                        if (bytes[0]===0x89 && bytes[1]===0x50 && bytes[2]===0x4E && bytes[3]===0x47) return 'image/png';
+                        if (bytes[0]===0x47 && bytes[1]===0x49 && bytes[2]===0x46 && bytes[3]===0x38) return 'image/gif';
+                        if (bytes[0]===0x25 && bytes[1]===0x50 && bytes[2]===0x44 && bytes[3]===0x46) return 'application/pdf';
+                        if (bytes[0]===0x52 && bytes[1]===0x49 && bytes[2]===0x46 && bytes[3]===0x46 &&
+                            bytes[8]===0x57 && bytes[9]===0x45 && bytes[10]===0x42 && bytes[11]===0x50) return 'image/webp';
+                        if (bytes[0]===0x42 && bytes[1]===0x4D) return 'image/bmp';
+                        return null;
+                    }
+
                     let blob = null;
-                    try {
-                        const resp = await fetch(url);
-                        if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
-                        blob = await resp.blob();
-                        console.log(`[Upload] Fetched blob size: ${blob.size}, type: ${blob.type}`);
-                    } catch (e) {
-                        console.error('[Upload] Failed to fetch file inside browser:', e);
+                    if (source.base64 != null) {
+                        try {
+                            const binary = atob(source.base64);
+                            const bytes = new Uint8Array(binary.length);
+                            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                            const realMime = detectMime(bytes) || source.mimeType || 'application/octet-stream';
+                            if (realMime !== source.mimeType) {
+                                console.log(`[Upload] Magic bytes detected "${realMime}" (server said "${source.mimeType}")`);
+                            }
+                            blob = new Blob([bytes], { type: realMime });
+                            console.log(`[Upload] Using pre-downloaded blob size: ${blob.size}, type: ${blob.type}`);
+                        } catch (e) {
+                            console.error('[Upload] Failed to decode base64 payload:', e);
+                            return false;
+                        }
+                    } else if (source.url) {
+                        try {
+                            const resp = await fetch(source.url);
+                            if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+                            blob = await resp.blob();
+                            const arr = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+                            const realMime = detectMime(arr);
+                            if (realMime && realMime !== blob.type) {
+                                console.log(`[Upload] Magic bytes detected "${realMime}" (fetch said "${blob.type}")`);
+                                blob = new Blob([blob], { type: realMime });
+                            }
+                            console.log(`[Upload] Fetched blob size: ${blob.size}, type: ${blob.type}`);
+                        } catch (e) {
+                            console.error('[Upload] Failed to fetch file inside browser:', e);
+                            return false;
+                        }
+                    } else {
+                        console.error('[Upload] No source (url or base64)');
                         return false;
                     }
 
@@ -723,9 +771,34 @@ async function executeBillingOnPage(page, requestData) {
                     if (!modal || !input) { console.error('[Upload] Upload dialog/input not found'); return false; }
 
                     // 4. Set File (DataTransfer Magic)
-                    // Use blob.type to support images (image/png, etc.) or PDFs automatically
                     const fileType = blob.type || 'application/octet-stream';
-                    const file = new File([blob], filename, { type: fileType, lastModified: Date.now() });
+                    // Map MIME → correct extension, and also list which extensions
+                    // are valid for each MIME so we can detect mismatches.
+                    const mimeExtMap = {
+                        'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif',
+                        'image/webp': '.webp', 'image/bmp': '.bmp',
+                        'application/pdf': '.pdf'
+                    };
+                    const mimeValidExts = {
+                        'image/jpeg': ['.jpg', '.jpeg'],
+                        'image/png': ['.png'],
+                        'image/gif': ['.gif'],
+                        'image/webp': ['.webp'],
+                        'image/bmp': ['.bmp'],
+                        'application/pdf': ['.pdf']
+                    };
+                    let fixedName = filename;
+                    const lastDot = filename.lastIndexOf('.');
+                    const currentExt = lastDot > 0 ? filename.slice(lastDot).toLowerCase() : '';
+                    const correctExt = mimeExtMap[fileType] || '.jpg';
+                    const validExts = mimeValidExts[fileType];
+                    // Fix if: no extension, or extension doesn't match actual content type
+                    if (!currentExt || (validExts && !validExts.includes(currentExt))) {
+                        const stem = lastDot > 0 ? filename.slice(0, lastDot) : filename;
+                        fixedName = stem + correctExt;
+                        console.log(`[Upload] Fixed filename: "${filename}" → "${fixedName}" (actual type: ${fileType})`);
+                    }
+                    const file = new File([blob], fixedName, { type: fileType, lastModified: Date.now() });
                     const dt = new DataTransfer();
                     dt.items.add(file);
                     input.files = dt.files;
@@ -752,19 +825,30 @@ async function executeBillingOnPage(page, requestData) {
                 }
 
                 let uploadSuccessCount = 0;
+                let firstFailureReason = null;
                 for (let idx = 0; idx < proofUrls.length; idx++) {
                     const url = proofUrls[idx];
-                    const filename = url.split('/').pop() || `proof-${idx + 1}`;
-                    console.log(`[Step] Uploading proof ${idx + 1}/${proofUrls.length}: ${url}`);
-                    const uploadOk = await uploadFileRobust(url, filename);
+                    const payload = proofFilePayloads[idx];
+                    const source = payload?.downloadFailed
+                        ? { downloadFailed: true, reason: payload.reason }
+                        : payload
+                            ? { base64: payload.base64, mimeType: payload.mimeType }
+                            : { url };
+                    const filename = payload && !payload.downloadFailed ? payload.filename : (url.split('/').pop() || `proof-${idx + 1}`);
+                    console.log(`[Step] Uploading proof ${idx + 1}/${proofUrls.length}: ${payload?.downloadFailed ? 'download-failed' : payload ? 'pre-downloaded' : url}`);
+                    const uploadResult = await uploadFileRobust(source, filename);
+                    const uploadOk = uploadResult === true;
                     if (uploadOk) {
                         uploadSuccessCount++;
                     } else {
+                        if (uploadResult && uploadResult.reason && !firstFailureReason) firstFailureReason = uploadResult.reason;
                         console.warn(`[Step] Proof ${idx + 1}/${proofUrls.length} failed to upload; continuing with others.`);
                     }
                 }
                 if (uploadSuccessCount === 0) {
-                    return { ok: false, error: `Failed to upload any of ${proofUrls.length} proof file(s) from URL` };
+                    const err = getPageError();
+                    const specific = firstFailureReason ? ` ${firstFailureReason}` : '';
+                    return { ok: false, error: err || `Failed to upload any of ${proofUrls.length} proof file(s).${specific}` };
                 }
                 console.log(`[Step] ${uploadSuccessCount}/${proofUrls.length} proof file(s) uploaded successfully.`);
             } else {
@@ -879,13 +963,13 @@ async function executeBillingOnPage(page, requestData) {
                     return { ok: true, amount, days, verified: false, warning: 'Billing attempted but not verified in list' };
                 }
             } else {
-                return { ok: false, error: 'Submit button (' + subId + ') not found' };
+                const err = getPageError(); return { ok: false, error: err || 'Submit button (' + subId + ') not found' };
             }
 
             // =========================================================================
             //  INJECTED LOGIC END
             // =========================================================================
-        }, { data: requestData, sel });
+        }, { data, sel });
 
         return result;
 

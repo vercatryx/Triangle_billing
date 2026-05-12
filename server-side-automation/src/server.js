@@ -1,34 +1,71 @@
-// Load .env first so all required modules see fresh values
-require('dotenv').config(process.env.DOTENV_CONFIG_PATH ? { path: process.env.DOTENV_CONFIG_PATH } : {});
+// Load .env first so all required modules see fresh values.
+const path = require('path');
+const fs = require('fs');
+
+// .env must be in the project root: same folder as package.json and src/
+const projectRoot = path.resolve(__dirname, '..');
+const envPath = process.env.DOTENV_CONFIG_PATH || path.join(projectRoot, '.env');
+
+const envExists = (() => { try { return fs.existsSync(envPath); } catch (_) { return false; } })();
+console.log('[Env] Using .env at:', envPath);
+console.log('[Env] File exists:', envExists, envExists ? '' : '→ Put .env in: ' + projectRoot);
+
+const envResult = require('dotenv').config({ path: envPath });
+if (envResult.error && !process.env.DOTENV_CONFIG_PATH) {
+    require('dotenv').config(); // fallback: cwd
+}
+
+// PORT: use env, or parse from .env file if dotenv didn't set it (e.g. Windows path/encoding)
+function getPort() {
+    const fromEnv = process.env.PORT;
+    if (fromEnv != null && String(fromEnv).trim() !== '') {
+        const n = parseInt(String(fromEnv).trim(), 10);
+        if (Number.isFinite(n) && n > 0) return n;
+    }
+    try {
+        const content = fs.readFileSync(envPath, 'utf8');
+        const m = content.match(/^\s*PORT\s*=\s*(\d+)/m);
+        if (m) return parseInt(m[1], 10);
+    } catch (_) {}
+    return 3500;
+}
+const PORT = getPort();
 
 // File logger: full console (log/info/warn/error) → logs/server.log, keeps last 3 days
 const { install: installLogger, getLogPath } = require('./core/logger');
-installLogger();
+try {
+    installLogger();
+} catch (e) {
+    try { console.warn('[Server] Logger init failed (logs may not be saved):', e.message); } catch (_) {}
+}
 
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const axios = require('axios');
-const { launchBrowser, closeBrowser, getActiveCount, MAX_BROWSERS } = require('./core/browser');
+const https = require('https');
+const tlsRelaxedAgent = new https.Agent({ rejectUnauthorized: false });
+// Lazy-load browser (Playwright) so server can listen immediately; avoids hang/crash on filtered networks (since 1.0.8).
+let _browser = null;
+function getBrowser() {
+    if (!_browser) _browser = require('./core/browser');
+    return _browser;
+}
 const { performLoginSequence } = require('./core/auth');
 const { billingWorker, fetchRequestsFromApi, fetchRequestsFromTSS } = require('./core/billingWorker');
 const { getDeviceId } = require('./core/deviceId');
 
 const app = express();
-const PORT = process.env.PORT || 3500;
 
-// Log env fingerprint at startup so you can confirm this process is using fresh .env
+// Log env fingerprint (same path as above)
 (function logEnvFingerprint() {
-    const envPath = path.resolve(process.cwd(), '.env');
     let mtime = '';
     try {
         const s = fs.statSync(envPath);
         mtime = new Date(s.mtime).toISOString();
     } catch (_) {
-        mtime = '(no .env file)';
+        mtime = '(not found)';
     }
     const maxBrowsers = process.env.MAX_BROWSERS || '15';
-    console.log(`[Env] Loaded .env (mtime: ${mtime}) → PORT=${PORT}, MAX_BROWSERS=${maxBrowsers}`);
+    console.log(`[Env] .env mtime: ${mtime} → PORT=${PORT}, MAX_BROWSERS=${maxBrowsers}`);
 })();
 
 // Allow large queue payloads when running "Run current queue" with many items (default is 100kb)
@@ -38,6 +75,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // -- SSE Setup --
 let clients = [];
+let lastSystemState = null;
 
 function eventsHandler(req, res) {
     const headers = {
@@ -56,7 +94,7 @@ function eventsHandler(req, res) {
         res.write(`event: queue\ndata: ${JSON.stringify(currentRequests)}\n\n`);
     }
     // Send config (e.g. current browser count; may change during run)
-    res.write(`event: config\ndata: ${JSON.stringify({ browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS })}\n\n`);
+    res.write(`event: config\ndata: ${JSON.stringify({ browserCount: getBrowser().getActiveCount(), maxBrowsers: getBrowser().MAX_BROWSERS })}\n\n`);
     if (lastSystemState) {
         res.write(`event: system\ndata: ${JSON.stringify(lastSystemState)}\n\n`);
     }
@@ -110,8 +148,8 @@ async function fetchAuthorizedDeviceIds() {
     if (authorizedDeviceIdsCache && now - authorizedDeviceIdsCacheTime < AUTHORIZED_CACHE_MS) {
         return authorizedDeviceIdsCache;
     }
-    try {
-        const res = await axios.get(AUTHORIZED_DEVICES_URL, { timeout: 10000 });
+    const tryFetch = async (attempt) => {
+        const res = await axios.get(AUTHORIZED_DEVICES_URL, { timeout: 15000, httpsAgent: tlsRelaxedAgent });
         if (res.status < 200 || res.status >= 300) {
             authorizedDeviceIdsCache = [];
             authorizedDeviceIdsCacheTime = now;
@@ -126,12 +164,19 @@ async function fetchAuthorizedDeviceIds() {
         authorizedDeviceIdsCache = list.map(id => String(id).trim());
         authorizedDeviceIdsCacheTime = now;
         return authorizedDeviceIdsCache;
+    };
+    try {
+        return await tryFetch(1);
     } catch (e) {
-        // Fail closed: any connection/network/parse error = disallow
-        console.error('[Server] Auth list unreachable or error – denying access:', e.message);
-        authorizedDeviceIdsCache = [];
-        authorizedDeviceIdsCacheTime = now;
-        return [];
+        try {
+            await new Promise((r) => setTimeout(r, 1500));
+            return await tryFetch(2);
+        } catch (e2) {
+            console.error('[Server] Auth list unreachable (tried twice) – denying access:', e.message);
+            authorizedDeviceIdsCache = [];
+            authorizedDeviceIdsCacheTime = now;
+            return [];
+        }
     }
 }
 
@@ -190,6 +235,84 @@ let currentRequests = null;
 let shouldStop = false;
 let stopBillingWorker = null;
 
+const BILLING_FILE_PATH = path.join(__dirname, '../billing_requests.json');
+
+/** Stable key for dedup/merge and for removing from file (url|date|name). */
+function requestKey(r) {
+    const url = (r && r.url != null) ? String(r.url).trim() : '';
+    const date = (r && r.date != null) ? String(r.date).trim() : '';
+    const name = (r && r.name != null) ? String(r.name).trim() : '';
+    return `${url}|${date}|${name}`;
+}
+
+/** Normalize a request from TSS API (or any source) to our file shape; API may use different field names. */
+function normalizeIncomingRequest(r) {
+    if (!r || typeof r !== 'object') return null;
+    const url = (r.url ?? r.order_url ?? r.link ?? r.page_url ?? r.orderLink ?? '').toString().trim();
+    const date = (r.date ?? r.start_date ?? r.service_date ?? r.period_start ?? r.serviceDate ?? '').toString().trim();
+    const name = (r.name ?? r.client_name ?? r.clientName ?? r.client ?? '').toString().trim();
+    const amount = typeof r.amount === 'number' ? r.amount : (r.amount != null ? Number(String(r.amount).replace(/[^\d.-]/g, '')) : 0);
+    let proofURL = r.proofURL ?? r.proof_url ?? r.proofUrl ?? r.document_url ?? '';
+    if (Array.isArray(proofURL)) proofURL = proofURL[0] || '';
+    proofURL = proofURL ? String(proofURL).trim() : '';
+    const equipment = r.equipment === true || r.equipment === 'true' || r.equtment === true || r.equtment === 'true';
+    const dependants = Array.isArray(r.dependants) ? r.dependants : [];
+    const orderIds = Array.isArray(r.orderIds) && r.orderIds.length ? r.orderIds : (Array.isArray(r.order_ids) ? r.order_ids : []);
+    const out = { name, url, date, amount, proofURL, dependants };
+    if (equipment) out.equipment = 'true';
+    if (orderIds.length) out.orderIds = orderIds;
+    return out;
+}
+
+/** Merge new requests into billing_requests.json (add only new keys). Uses normalizeIncomingRequest so API field names work. Returns merged array. */
+function mergeNewRequestsIntoFile(newRequests) {
+    let existing = [];
+    if (fs.existsSync(BILLING_FILE_PATH)) {
+        try {
+            const data = fs.readFileSync(BILLING_FILE_PATH, 'utf8');
+            const parsed = JSON.parse(data);
+            existing = Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+            existing = [];
+        }
+    }
+    const keys = new Set(existing.map(r => requestKey(r)));
+    const added = [];
+    for (const r of newRequests) {
+        const normalized = normalizeIncomingRequest(r);
+        if (!normalized) continue;
+        const k = requestKey(normalized);
+        if (!keys.has(k)) {
+            keys.add(k);
+            existing.push(normalized);
+            added.push(normalized);
+        }
+    }
+    fs.writeFileSync(BILLING_FILE_PATH, JSON.stringify(existing, null, 4), 'utf8');
+    if (added.length) {
+        console.log(`[Server] Appended ${added.length} new request(s) to billing_requests.json (total ${existing.length})`);
+    }
+    existing.forEach(r => { r.status = r.status || 'pending'; r.message = r.message || ''; });
+    return existing;
+}
+
+/** Remove one request from billing_requests.json by key (after successful billing). */
+function removeRequestFromFile(req) {
+    if (!fs.existsSync(BILLING_FILE_PATH)) return;
+    const key = requestKey(req);
+    try {
+        const data = fs.readFileSync(BILLING_FILE_PATH, 'utf8');
+        const requests = JSON.parse(data);
+        if (!Array.isArray(requests)) return;
+        const filtered = requests.filter(r => requestKey(r) !== key);
+        if (filtered.length === requests.length) return;
+        fs.writeFileSync(BILLING_FILE_PATH, JSON.stringify(filtered, null, 4), 'utf8');
+        console.log(`[Server] Removed 1 request from billing_requests.json (${filtered.length} remaining)`);
+    } catch (e) {
+        console.error('[Server] removeRequestFromFile Error:', e.message);
+    }
+}
+
 // Routes (device authorization applied to all action endpoints)
 app.post('/fetch-requests', requireAuthorizedDevice, async (req, res) => {
     try {
@@ -200,13 +323,16 @@ app.post('/fetch-requests', requireAuthorizedDevice, async (req, res) => {
             return res.json({ success: true, count: 0, message: 'No pending requests found.', requests: [] });
         }
 
-        // Initialize status
-        requests.forEach(r => { r.status = 'pending'; r.message = ''; });
-        currentRequests = requests;
+        // Replace billing file with fetched list (wipe and replace, no append)
+        const normalized = requests.map(r => normalizeIncomingRequest(r)).filter(Boolean);
+        fs.writeFileSync(BILLING_FILE_PATH, JSON.stringify(normalized, null, 4), 'utf8');
+        console.log(`[Server] Replaced billing_requests.json with ${normalized.length} request(s) from TSS API.`);
+        normalized.forEach(r => { r.status = 'pending'; r.message = ''; });
+        currentRequests = normalized;
         broadcast('queue', currentRequests);
 
         // Include requests in response so client can show them even if SSE is disconnected (e.g. Electron)
-        res.json({ success: true, count: requests.length, message: `Loaded ${requests.length} requests.`, requests });
+        res.json({ success: true, count: normalized.length, message: `Saved to file and loaded ${normalized.length} requests.`, requests: normalized });
     } catch (e) {
         console.error('[Server] Fetch Preview Error:', e);
         res.status(500).json({ error: e.message });
@@ -219,7 +345,7 @@ app.post('/billing-requests', requireAuthorizedDevice, (req, res) => {
     if (!Array.isArray(bodyRequests) || bodyRequests.length === 0) {
         return res.status(400).json({ error: 'Body must contain "requests" as a non-empty array.' });
     }
-    const jsonPath = path.join(__dirname, '../billing_requests.json');
+    const jsonPath = BILLING_FILE_PATH;
     try {
         const requests = bodyRequests.map(r => {
             const out = {
@@ -248,7 +374,7 @@ app.post('/billing-requests', requireAuthorizedDevice, (req, res) => {
 
 // Load billing_requests.json into the queue only (no automation run). Use "Run current queue" to run.
 app.post('/load-billing-file', requireAuthorizedDevice, (req, res) => {
-    const jsonPath = path.join(__dirname, '../billing_requests.json');
+    const jsonPath = BILLING_FILE_PATH;
     if (!fs.existsSync(jsonPath)) {
         return res.status(404).json({ error: 'billing_requests.json not found' });
     }
@@ -284,7 +410,7 @@ app.post('/process-billing', requireAuthorizedDevice, async (req, res) => {
     try {
         if (source === 'file') {
             // -- SOURCE: FILE --
-            const jsonPath = path.join(__dirname, '../billing_requests.json');
+            const jsonPath = BILLING_FILE_PATH;
             if (!fs.existsSync(jsonPath)) {
                 return res.status(404).json({ error: 'billing_requests.json not found' });
             }
@@ -357,12 +483,18 @@ app.post('/process-billing', requireAuthorizedDevice, async (req, res) => {
         console.log('[Server] Stop signal received');
     };
 
+    // When a request is successfully billed, remove it only from the file (so file = unbilled only).
+    // Keep it in the queue/UI so the screen shows what happened (short-term memory).
+    const onRequestSuccess = (req) => {
+        removeRequestFromFile(req);
+    };
+
     (async () => {
         try {
-            await launchBrowser();
+            await getBrowser().launchBrowser();
             // Pass requests to worker (for file mode) or null (for API mode, worker will fetch from TSS)
-            // Also pass a function to check if we should stop
-            await billingWorker((source === 'file' || source === 'queue') ? requests : null, broadcast, source, apiConfig, () => shouldStop);
+            // Also pass stopCheck and onRequestSuccess (remove from file after each successful billing)
+            await billingWorker((source === 'file' || source === 'queue') ? requests : null, broadcast, source, apiConfig, () => shouldStop, onRequestSuccess);
             if (shouldStop) {
                 broadcast('log', { message: '--- Automation Run Stopped by User ---', type: 'warning' });
             } else {
@@ -375,7 +507,7 @@ app.post('/process-billing', requireAuthorizedDevice, async (req, res) => {
             isRunning = false;
             shouldStop = false;
             stopBillingWorker = null;
-            closeBrowser();
+            getBrowser().closeBrowser();
             broadcast('status', { isRunning: false });
             broadcast('runners', []);
         }

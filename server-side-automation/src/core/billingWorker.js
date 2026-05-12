@@ -1,29 +1,28 @@
 const { performLoginSequence } = require('./auth');
 const axios = require('axios');
+const https = require('https');
+const tlsRelaxedAgent = new https.Agent({ rejectUnauthorized: false });
 const { executeBillingOnPage } = require('./billingActions');
 const uniteSelectors = require('./uniteSelectors');
-const {
-    getPage,
-    getContext,
-    closeBrowser,
-    restartBrowser,
-    getActiveCount,
-    setTargetCount,
-    isDraining,
-    requestDrain,
-    slotClosed,
-    addSlot,
-    MAX_BROWSERS
-} = require('./browser');
+// Lazy-load browser (Playwright) so server can listen before Playwright loads (avoids hang/crash on filtered networks).
+let _browser = null;
+function getBrowser() {
+    if (!_browser) _browser = require('./browser');
+    return _browser;
+}
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { needsDownloadFirst, downloadProofUrlToTemp } = require('./proofUrlDownload');
+const { convertPdfFileToImages, isPdfFile } = require('./pdfToImage');
 
-require('dotenv').config();
+// Load .env from project root (parent of src/) so credentials are found regardless of cwd
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
-/** Number of browsers to run; always MAX_BROWSERS (no CPU-based scaling). */
+/** Number of browsers to run; always getBrowser().MAX_BROWSERS (no CPU-based scaling). */
 
-const EMAIL = process.env.UNITEUS_EMAIL;
-const PASSWORD = process.env.UNITEUS_PASSWORD;
+const EMAIL = process.env.UNITEUS_EMAIL && String(process.env.UNITEUS_EMAIL).trim();
+const PASSWORD = process.env.UNITEUS_PASSWORD && String(process.env.UNITEUS_PASSWORD).trim();
 
 // --- API CONFIG DEFAULTS ---
 const DEFAULT_API_BASE_URL = process.env.EXTENSION_API_BASE_URL || 'http://localhost:3000';
@@ -98,7 +97,7 @@ async function fetchRequestsFromTSS(config) {
             headers['Authorization'] = `Bearer ${TSS_API_KEY}`;
         }
 
-        const res = await axios.get(TSS_BILLING_REQUESTS_URL, { headers });
+        const res = await axios.get(TSS_BILLING_REQUESTS_URL, { headers, httpsAgent: tlsRelaxedAgent });
 
         let requests = null;
         if (Array.isArray(res.data)) {
@@ -218,7 +217,7 @@ async function updateOrderBillingStatus(orderIds, status, billingNotes = '') {
     console.log(`[TSS] Updating ${orderIds.length} order(s) -> ${status}`);
     
     try {
-        const response = await axios.post(TSS_BILLING_STATUS_URL, payload, { headers });
+        const response = await axios.post(TSS_BILLING_STATUS_URL, payload, { headers, httpsAgent: tlsRelaxedAgent });
         console.log(`[TSS] Billing status updated successfully. Response status: ${response.status}`);
         return { ok: true };
     } catch (err) {
@@ -247,8 +246,9 @@ function getOrderIds(req) {
  * @param {string} source - 'file' (default) or 'api'
  * @param {Object} apiConfig - API configuration (optional)
  * @param {function} stopCheck - Function that returns true if the process should stop
+ * @param {function} onRequestSuccess - Optional; called when a request is successfully billed (e.g. to remove from file)
  */
-async function billingWorker(initialRequests, emitEvent, source = 'file', apiConfig = null, stopCheck = () => false) {
+async function billingWorker(initialRequests, emitEvent, source = 'file', apiConfig = null, stopCheck = () => false, onRequestSuccess = null) {
     if (!EMAIL || !PASSWORD) {
         emitEvent('log', { message: 'Missing UNITEUS_EMAIL or UNITEUS_PASSWORD in env.', type: 'error' });
         return;
@@ -294,21 +294,21 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
     const takeNext = () => (nextIndex < requests.length ? nextIndex++ : null);
     const hasWork = () => nextIndex < requests.length;
 
-    setTargetCount(1);
+    getBrowser().setTargetCount(1);
     const runners = [];
     const setRunner = (slot, data) => {
         while (runners.length <= slot) runners.push(null);
         runners[slot] = data;
-        emitEvent('runners', runners.slice(0, getActiveCount()));
+        emitEvent('runners', runners.slice(0, getBrowser().getActiveCount()));
     };
 
-    emitEvent('config', { browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS });
+    emitEvent('config', { browserCount: getBrowser().getActiveCount(), maxBrowsers: getBrowser().MAX_BROWSERS });
 
     /**
      * Process a single request (one iteration of the old lane loop).
-     * @returns {{ breakLane?: boolean }} breakLane true to stop this runner (login failed, user stop)
+     * @returns {{ breakLane?: boolean, page?: object, context?: object }} breakLane true to stop this runner; page/context when browser was restarted so caller can use the new refs
      */
-    async function processOneRequest(slot, i, requests, page, context, emitEvent, source, apiConfig, setRunner, attachConsoleLogger, sleep, isLoggedIn, waitForPageReady) {
+    async function processOneRequest(slot, i, requests, page, context, emitEvent, source, apiConfig, setRunner, attachConsoleLogger, sleep, isLoggedIn, waitForPageReady, onRequestSuccess) {
         const req = requests[i];
         req.status = 'processing';
         req.message = 'Starting...';
@@ -316,6 +316,8 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         emitEvent('queue', requests);
         emitEvent('log', { message: `Processing ${req.name} (${i + 1}/${requests.length})` });
 
+        /** Temp proof files to delete when request finishes */
+        let proofTempPathsToClean = [];
         let resultSourceStatus = 'unknown';
 
         if (req.skip) {
@@ -343,7 +345,22 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         }
 
         try {
-            const [year, month, day] = req.date.split('-').map(Number);
+            const dateParts = req.date.split(/[\/\-.]/).map(Number);
+            let month, day, year;
+            if (dateParts.length !== 3) throw new Error('Unparseable date: ' + req.date);
+            if (dateParts[2] >= 2000) {
+                // MM-DD-YYYY (standard format)
+                [month, day, year] = dateParts;
+            } else if (dateParts[0] >= 2000) {
+                // legacy YYYY-MM-DD
+                [year, month, day] = dateParts;
+            } else if (dateParts[2] < 100) {
+                // M/D/YY
+                [month, day] = dateParts; year = 2000 + dateParts[2];
+            } else {
+                [month, day, year] = dateParts;
+            }
+            if (month > 12 && day <= 12) { [month, day] = [day, month]; }
             const startDate = new Date(year, month - 1, day);
             const endDate = new Date(startDate);
             const isEquipment = req.equipment === true || req.equipment === 'true' || req.equtment === true || req.equtment === 'true';
@@ -351,10 +368,10 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                 endDate.setDate(endDate.getDate() + 6);
             }
             const formatDate = (d) => {
-                const y = d.getFullYear();
                 const m = String(d.getMonth() + 1).padStart(2, '0');
                 const day = String(d.getDate()).padStart(2, '0');
-                return `${y}-${m}-${day}`;
+                const y = d.getFullYear();
+                return `${m}-${day}-${y}`;
             };
             req.start = formatDate(startDate);
             req.end = formatDate(endDate);
@@ -378,14 +395,46 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         if (!(await isLoggedIn())) {
             setRunner(slot, { clientName: req.name, step: 'Logging in...' });
             emitEvent('log', { message: 'Logging in...' });
-            const loginOk = await performLoginSequence(EMAIL, PASSWORD, page, context);
-            if (!loginOk) {
-                req.status = 'failed';
-                setRunner(slot, { clientName: req.name, step: 'Login failed' });
-                emitEvent('log', { message: 'Login failed. Aborting.', type: 'error' });
-                return { breakLane: true };
+            try {
+                // Browser may have been closed — get a fresh page first
+                try {
+                    if (page.isClosed()) throw new Error('page closed');
+                } catch (_) {
+                    emitEvent('log', { message: 'Page/browser gone. Restarting browser...', type: 'warning' });
+                    page = await getBrowser().restartBrowser(slot);
+                    context = getBrowser().getContext(slot);
+                    attachConsoleLogger(page);
+                }
+                const loginOk = await performLoginSequence(EMAIL, PASSWORD, page, context);
+                if (!loginOk) {
+                    req.status = 'failed';
+                    setRunner(slot, { clientName: req.name, step: 'Login failed' });
+                    emitEvent('log', { message: 'Login failed. Aborting.', type: 'error' });
+                    return { breakLane: true };
+                }
+                await sleep(2000);
+            } catch (loginErr) {
+                emitEvent('log', { message: `Login error: ${loginErr.message}. Restarting browser...`, type: 'error' });
+                try {
+                    page = await getBrowser().restartBrowser(slot);
+                    context = getBrowser().getContext(slot);
+                    attachConsoleLogger(page);
+                    const retryLogin = await performLoginSequence(EMAIL, PASSWORD, page, context);
+                    if (!retryLogin) {
+                        req.status = 'failed';
+                        setRunner(slot, { clientName: req.name, step: 'Login failed' });
+                        emitEvent('log', { message: 'Login failed after restart. Aborting lane.', type: 'error' });
+                        return { breakLane: true };
+                    }
+                    await sleep(2000);
+                } catch (restartErr) {
+                    req.status = 'failed';
+                    req.message = `Browser restart failed: ${restartErr.message}`;
+                    setRunner(slot, { clientName: req.name, step: 'Failed' });
+                    emitEvent('log', { message: req.message, type: 'error' });
+                    return { breakLane: true };
+                }
             }
-            await sleep(2000);
         }
 
         if (!req.url) {
@@ -401,6 +450,7 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         let lastResult = null;  // used to skip browser restart when failure was duplicate
         let loginFailedOnRetry = false;
         let logicError = false;
+        let restartedPage, restartedContext;  // when browser was restarted, pass back so lane uses new refs
 
         try {
             setRunner(slot, { clientName: req.name, step: 'Navigating...' });
@@ -413,12 +463,89 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                 req.proofURL = Array.isArray(req.proofURL) ? req.proofURL : [req.proofURL];
             }
 
+            // Resolve proof URLs that need server-side download (Firebase, Google Drive, or non-direct links).
+            // Same logic for every source: Excel export, TSS API, billing_requests.json, manual paste — we only look at the URL string.
+            const proofTempPathsToClean = [];
+            if (req.proofURL && req.proofURL.length > 0) {
+                req.proofDownloadedMeta = [];
+                req.proofDownloadErrors = [];
+                const tempDir = os.tmpdir();
+                for (let p = 0; p < req.proofURL.length; p++) {
+                    const url = (req.proofURL[p] || '').trim();
+                    if (!url) {
+                        req.proofDownloadedMeta.push(null);
+                        req.proofDownloadErrors.push(null);
+                        continue;
+                    }
+                    if (needsDownloadFirst(url)) {
+                        try {
+                            const meta = await downloadProofUrlToTemp(url, tempDir);
+                            req.proofDownloadedMeta.push(meta);
+                            req.proofDownloadErrors.push(null);
+                            proofTempPathsToClean.push(meta.path);
+                        } catch (e) {
+                            const reason = e && e.message ? String(e.message) : 'Unknown error';
+                            console.warn(`[Worker] Failed to download proof ${p + 1}: ${reason}`);
+                            req.proofDownloadedMeta.push(null);
+                            req.proofDownloadErrors.push(reason);
+                        }
+                    } else {
+                        req.proofDownloadedMeta.push(null);
+                        req.proofDownloadErrors.push(null);
+                    }
+                }
+
+                // Convert unsupported formats (WEBP, BMP, TIFF) to JPEG.
+                // PDF, JPEG, PNG, GIF are accepted by the billing system as-is.
+                const ACCEPTED_MIMES = new Set([
+                    'image/jpeg', 'image/png', 'image/gif',
+                    'application/pdf',
+                    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                ]);
+                const expandedMeta = [];
+                const expandedErrors = [];
+                const expandedUrls = [];
+                for (let p = 0; p < req.proofDownloadedMeta.length; p++) {
+                    const meta = req.proofDownloadedMeta[p];
+                    const mime = (meta && meta.contentType || '').split(';')[0].trim().toLowerCase();
+                    const needsConversion = meta && meta.path && mime && !ACCEPTED_MIMES.has(mime) &&
+                        (mime.startsWith('image/') || isPdfFile(meta));
+                    if (needsConversion) {
+                        try {
+                            const imageMetas = await convertPdfFileToImages(meta.path, tempDir);
+                            console.log(`[Worker] Converted ${mime} proof to ${imageMetas.length} JPEG image(s)`);
+                            for (const img of imageMetas) {
+                                expandedMeta.push(img);
+                                expandedErrors.push(null);
+                                expandedUrls.push(req.proofURL[p] || '');
+                                proofTempPathsToClean.push(img.path);
+                            }
+                            try { fs.unlinkSync(meta.path); } catch (_) {}
+                        } catch (convErr) {
+                            console.warn(`[Worker] Format conversion failed, keeping original: ${convErr.message}`);
+                            expandedMeta.push(meta);
+                            expandedErrors.push(req.proofDownloadErrors[p]);
+                            expandedUrls.push(req.proofURL[p] || '');
+                        }
+                    } else {
+                        expandedMeta.push(meta);
+                        expandedErrors.push(req.proofDownloadErrors[p]);
+                        expandedUrls.push(req.proofURL[p] || '');
+                    }
+                }
+                req.proofDownloadedMeta = expandedMeta;
+                req.proofDownloadErrors = expandedErrors;
+                req.proofURL = expandedUrls;
+            }
+
             restartLoop: for (let r = 0; r < RESTART_CYCLES; r++) {
                 if (r > 0) {
                     emitEvent('log', { message: `Restart ${r}/${RESTART_CYCLES}: shutting down browser, clearing cookies/data, starting fresh...`, type: 'warning' });
-                    await closeBrowser(slot);
-                    page = await getPage(slot);
-                    context = getContext(slot);
+                    await getBrowser().closeBrowser(slot);
+                    page = await getBrowser().getPage(slot);
+                    context = getBrowser().getContext(slot);
+                    restartedPage = page;
+                    restartedContext = context;
                     attachConsoleLogger(page);
                     emitEvent('log', { message: 'Logging in (after restart). Login flow clears cookies & storage.', type: 'info' });
                     const loginOk = await performLoginSequence(EMAIL, PASSWORD, page, context);
@@ -448,7 +575,28 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                         }
                         result = await executeBillingOnPage(page, req);
                         lastResult = result;
-                        if (result.ok || result.duplicate) break restartLoop;  // duplicate: fail immediately, no retries/restarts
+                        if (result.ok || result.duplicate) break restartLoop;
+                        if (result.loggedOut) {
+                            emitEvent('log', { message: 'Session expired (login page detected). Re-logging in...', type: 'warning' });
+                            try {
+                                page = await getBrowser().restartBrowser(slot);
+                                context = getBrowser().getContext(slot);
+                                restartedPage = page;
+                                restartedContext = context;
+                                attachConsoleLogger(page);
+                                const loginOk = await performLoginSequence(EMAIL, PASSWORD, page, context);
+                                if (!loginOk) { loginFailedOnRetry = true; break restartLoop; }
+                                await sleep(2000);
+                                await page.goto(req.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+                                await waitForPageReady();
+                                a = -1; // reset attempt counter after re-login
+                                continue;
+                            } catch (reLoginErr) {
+                                emitEvent('log', { message: `Re-login failed: ${reLoginErr.message}`, type: 'error' });
+                                loginFailedOnRetry = true;
+                                break restartLoop;
+                            }
+                        }
                         if (!isRetryableError(result.error)) {
                             logicError = true;
                             emitEvent('log', { message: `Logic error (non-retryable): ${result.error}. Failing immediately.`, type: 'error' });
@@ -476,6 +624,7 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                         req.message = `Billed: $${result.amount || req.amount}`;
                         setRunner(slot, { clientName: req.name, step: 'Complete' });
                         emitEvent('log', { message: `✅ Success!`, type: 'success' });
+                        if (onRequestSuccess) onRequestSuccess(req);
                         resultSourceStatus = 'billing_successful';
                     } else {
                         req.status = 'warning';
@@ -509,11 +658,15 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
 
             const errorMsg = String(e.message || '').toLowerCase();
             const isBrowserClosed =
-                (errorMsg.includes('target page') && errorMsg.includes('has been closed')) ||
-                (errorMsg.includes('target page') && errorMsg.includes('context or browser has been closed')) ||
-                (errorMsg.includes('page.goto') && errorMsg.includes('has been closed')) ||
-                (errorMsg.includes('browser has been closed')) ||
-                (errorMsg.includes('context has been closed'));
+                (errorMsg.includes('target page') && errorMsg.includes('closed')) ||
+                (errorMsg.includes('page.goto') && errorMsg.includes('closed')) ||
+                errorMsg.includes('browser has been closed') ||
+                errorMsg.includes('context has been closed') ||
+                errorMsg.includes('target closed') ||
+                (errorMsg.includes('protocol error') && errorMsg.includes('target')) ||
+                (errorMsg.includes('connection closed') && errorMsg.includes('browser')) ||
+                errorMsg.includes('browser closed') ||
+                errorMsg.includes('page has been closed');
 
             // Duplicates are final: do not restart browser or retry.
             if (lastResult && lastResult.duplicate) {
@@ -527,9 +680,9 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                 emitEvent('log', { message: `Error details: ${e.message}`, type: 'error' });
 
                 try {
-                    await closeBrowser(slot);
-                    page = await restartBrowser(slot);
-                    context = getContext(slot);
+                    await getBrowser().closeBrowser(slot);
+                    page = await getBrowser().restartBrowser(slot);
+                    context = getBrowser().getContext(slot);
                     attachConsoleLogger(page);
 
                     emitEvent('log', { message: 'Browser restarted successfully. Re-logging in...', type: 'info' });
@@ -539,6 +692,7 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                         req.status = 'failed';
                         req.message = 'Login failed after browser restart.';
                         emitEvent('log', { message: 'Login failed after browser restart. Aborting.', type: 'error' });
+                        proofTempPathsToClean.forEach(p => { try { fs.unlinkSync(p); } catch (_) {} });
                         emitEvent('queue', requests);
                         return { breakLane: true };
                     }
@@ -575,6 +729,7 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                                 req.status = 'success';
                                 req.message = `Billed: $${retryResult.amount || req.amount}`;
                                 emitEvent('log', { message: `✅ Success after browser restart!`, type: 'success' });
+                                if (onRequestSuccess) onRequestSuccess(req);
                                 resultSourceStatus = 'billing_successful';
                             } else {
                                 req.status = 'warning';
@@ -596,6 +751,8 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
                             }
                         }
                     }
+                    restartedPage = page;
+                    restartedContext = context;
                 } catch (restartError) {
                     emitEvent('log', { message: `Failed to restart browser: ${restartError.message}`, type: 'error' });
                     req.status = 'failed';
@@ -606,6 +763,15 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
             } else {
                 await page.screenshot({ path: `error_${slot}_${i}.png` }).catch(() => {});
             }
+        }
+
+        // Clean up temp proof files (Firebase/Drive downloads)
+        proofTempPathsToClean.forEach(p => { try { fs.unlinkSync(p); } catch (_) {} });
+
+        // Never report success to API unless we actually got a successful billing result from the page
+        if (resultSourceStatus === 'billing_successful' && (!result || !result.ok)) {
+            emitEvent('log', { message: 'Safety: not reporting success — no confirmed billing result from browser.', type: 'warning' });
+            resultSourceStatus = 'billing_failed';
         }
 
         const shouldReportFailure = resultSourceStatus !== 'billing_failed' || isPermanentFailure(req.message);
@@ -653,12 +819,27 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
             return { breakLane: true };
         }
 
-        return {};
+        const out = {};
+        if (restartedPage) out.page = restartedPage;
+        if (restartedContext) out.context = restartedContext;
+        return out;
     }
 
     async function runOneLane(slot) {
-        let page = await getPage(slot);
-        let context = getContext(slot);
+        let page, context;
+        try {
+            page = await getBrowser().getPage(slot);
+            context = getBrowser().getContext(slot);
+        } catch (initErr) {
+            console.error(`[Worker slot ${slot}] Failed to get browser page: ${initErr.message}. Attempting restart...`);
+            try {
+                page = await getBrowser().restartBrowser(slot);
+                context = getBrowser().getContext(slot);
+            } catch (restartErr) {
+                console.error(`[Worker slot ${slot}] Browser restart failed: ${restartErr.message}. Lane cannot start.`);
+                return;
+            }
+        }
 
         const attachConsoleLogger = (p) => {
             p.on('console', msg => {
@@ -689,27 +870,34 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
         };
 
         let i;
-        while ((i = takeNext()) !== null && !stopCheck() && !isDraining(slot)) {
-            if (stopCheck()) {
-                if (requests[i]) {
-                    requests[i].status = 'stopped';
-                    requests[i].message = 'Process stopped by user';
+        try {
+            while ((i = takeNext()) !== null && !stopCheck() && !getBrowser().isDraining(slot)) {
+                if (stopCheck()) {
+                    if (requests[i]) {
+                        requests[i].status = 'stopped';
+                        requests[i].message = 'Process stopped by user';
+                    }
+                    emitEvent('queue', requests);
+                    emitEvent('log', { message: 'Stop signal received. Stopping process...', type: 'warning' });
+                    break;
                 }
-                emitEvent('queue', requests);
-                emitEvent('log', { message: 'Stop signal received. Stopping process...', type: 'warning' });
-                break;
+                const out = await processOneRequest(slot, i, requests, page, context, emitEvent, source, apiConfig, setRunner, attachConsoleLogger, sleep, isLoggedIn, waitForPageReady, onRequestSuccess);
+                if (out && out.breakLane) break;
+                if (out && out.page) page = out.page;
+                if (out && out.context) context = out.context;
+                await sleep(1000);
             }
-            const out = await processOneRequest(slot, i, requests, page, context, emitEvent, source, apiConfig, setRunner, attachConsoleLogger, sleep, isLoggedIn, waitForPageReady);
-            if (out && out.breakLane) break;
-            await sleep(1000);
+        } catch (laneErr) {
+            console.error(`[Worker slot ${slot}] Unhandled lane error: ${laneErr.message}. Lane stopping gracefully.`);
+            emitEvent('log', { message: `Lane ${slot} crashed: ${laneErr.message}. Remaining items still queued.`, type: 'error' });
         }
 
         setRunner(slot, null);
-        if (isDraining(slot)) {
-            await closeBrowser(slot);
-            slotClosed(slot);
-            emitEvent('config', { browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS });
-            emitEvent('runners', runners.slice(0, getActiveCount()));
+        if (getBrowser().isDraining(slot)) {
+            await getBrowser().closeBrowser(slot);
+            getBrowser().slotClosed(slot);
+            emitEvent('config', { browserCount: getBrowser().getActiveCount(), maxBrowsers: getBrowser().MAX_BROWSERS });
+            emitEvent('runners', runners.slice(0, getBrowser().getActiveCount()));
         }
     }
 
@@ -723,15 +911,15 @@ async function billingWorker(initialRequests, emitEvent, source = 'file', apiCon
     // Ensure slot 0 exists (launchBrowser already called by server)
     startRunner(0);
 
-    // Always use MAX_BROWSERS (no CPU-based scaling)
-    setTargetCount(MAX_BROWSERS);
-    const initialToAdd = Math.max(0, MAX_BROWSERS - 1);
+    // Always use getBrowser().MAX_BROWSERS (no CPU-based scaling)
+    getBrowser().setTargetCount(getBrowser().MAX_BROWSERS);
+    const initialToAdd = Math.max(0, getBrowser().MAX_BROWSERS - 1);
     for (let a = 0; a < initialToAdd; a++) {
-        const added = await addSlot();
+        const added = await getBrowser().addSlot();
         if (added && !runEnding) {
-            startRunner(getActiveCount() - 1);
-            emitEvent('config', { browserCount: getActiveCount(), maxBrowsers: MAX_BROWSERS });
-            emitEvent('runners', runners.slice(0, getActiveCount()));
+            startRunner(getBrowser().getActiveCount() - 1);
+            emitEvent('config', { browserCount: getBrowser().getActiveCount(), maxBrowsers: getBrowser().MAX_BROWSERS });
+            emitEvent('runners', runners.slice(0, getBrowser().getActiveCount()));
         }
     }
 

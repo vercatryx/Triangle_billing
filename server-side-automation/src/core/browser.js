@@ -16,6 +16,9 @@ const draining = Object.create(null);
 /** Pool: slots[slot] = { browser, context, page } or null. Indices 0..MAX_BROWSERS-1. */
 const slots = [];
 
+/** Per-slot lock: only one launch/restart at a time per slot. launchLocks[slot] = Promise that resolves when launch completes. */
+const launchLocks = {};
+
 function getSlot(slotIndex) {
     const slot = slotIndex == null ? 0 : slotIndex;
     if (slot < 0 || slot >= MAX_BROWSERS) throw new Error(`Invalid browser slot: ${slot} (MAX_BROWSERS=${MAX_BROWSERS})`);
@@ -123,27 +126,52 @@ async function addSlot() {
         if (msg.type() === 'error') console.error(`[Browser ${slot}] ${msg.text()}`);
     });
 
+    browser.on('disconnected', () => {
+        console.warn(`[Browser] Slot ${slot + 1} disconnected unexpectedly. Clearing slot for relaunch.`);
+        slots[slot] = null;
+    });
+
+    page.on('crash', () => {
+        console.error(`[Browser] Page crash detected on slot ${slot + 1}. Clearing slot for relaunch.`);
+        slots[slot] = null;
+    });
+
     slots[slot] = { browser, context, page };
     return true;
 }
 
+/** Close browser with timeout so we don't hang if process is dead. */
+const CLOSE_TIMEOUT_MS = 8000;
+
 async function launchBrowserForSlot(slotIndex) {
     const slot = getSlot(slotIndex);
-    const existing = slots[slot];
-    if (existing && existing.browser && existing.browser.isConnected()) {
-        try {
-            if (!existing.page.isClosed()) return existing.page;
-        } catch (e) { /* invalid, recreate */ }
+    if (launchLocks[slot]) {
+        await launchLocks[slot];
+        return getPage(slot);
     }
 
-    if (existing && existing.browser) {
-        try {
-            await existing.browser.close();
-        } catch (e) { /* already closed */ }
-        slots[slot] = null;
-    }
+    let releaseLock;
+    launchLocks[slot] = new Promise((resolve) => { releaseLock = resolve; });
 
-    console.log(`[Browser] Launching Chromium (slot ${slot + 1}/${MAX_BROWSERS})...`);
+    try {
+        const existing = slots[slot];
+        if (existing && existing.browser && existing.browser.isConnected()) {
+            try {
+                if (!existing.page.isClosed()) return existing.page;
+            } catch (e) { /* invalid, recreate */ }
+        }
+
+        if (existing && existing.browser) {
+            try {
+                await Promise.race([
+                    existing.browser.close(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('close timeout')), CLOSE_TIMEOUT_MS))
+                ]);
+            } catch (e) { /* already closed or timeout */ }
+            slots[slot] = null;
+        }
+
+        console.log(`[Browser] Launching Chromium (slot ${slot + 1}/${MAX_BROWSERS})...`);
     const browser = await chromium.launch({
         headless: process.env.HEADLESS === 'true',
         args: [
@@ -206,8 +234,22 @@ async function launchBrowserForSlot(slotIndex) {
         if (msg.type() === 'error') console.error(`[Browser ${slot}] ${msg.text()}`);
     });
 
-    slots[slot] = { browser, context, page };
-    return page;
+    browser.on('disconnected', () => {
+        console.warn(`[Browser] Slot ${slot + 1} disconnected unexpectedly. Clearing slot for relaunch.`);
+        slots[slot] = null;
+    });
+
+    page.on('crash', () => {
+        console.error(`[Browser] Page crash detected on slot ${slot + 1}. Clearing slot for relaunch.`);
+        slots[slot] = null;
+    });
+
+        slots[slot] = { browser, context, page };
+        return page;
+    } finally {
+        delete launchLocks[slot];
+        if (typeof releaseLock === 'function') releaseLock();
+    }
 }
 
 async function getPage(slotIndex) {

@@ -1,632 +1,194 @@
 [
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/2296ad11-0bfc-4501-bb31-effa6897fbed/contact/320d57fe-cef6-41f9-b6b7-b90c0772eb33",
-        "date": "2026-01-01",
-        "amount": 250,
-        "proofURL": "ESTHER LABIN.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/dd74b413-9d74-4b09-82cf-c417d5e3bbb4/contact/6329126f-3ba7-4c59-89f6-751aa0119c02",
-        "date": "2026-01-01",
-        "amount": 250,
-        "proofURL": "Dina simonovits.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/0cd8e08c-cdbf-4088-a7ad-5cc35a0be57c/contact/617114c8-dfaa-4506-a9e6-bfab9b4d5639",
-        "date": "2026-01-31",
-        "amount": 250,
-        "proofURL": "yitle fuchs.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/0f13e087-789a-4760-b07b-dc06347d2540/contact/76fb35e5-c537-47a5-8938-2fb774b319d8",
-        "date": "2026-01-31",
-        "amount": 249.9,
-        "proofURL": "Moshe Geiger.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/b713c15c-61b7-41c2-8631-8cb3b6a8444e/contact/321862f7-1dad-481f-ad0d-735d1d3a6b2f",
-        "date": "2026-01-31",
-        "amount": 250,
-        "proofURL": "FAIGA IGEL.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/54c5ed91-3d05-419d-93cc-7257d6aa85ec/contact/48ccdf42-4974-48e7-b146-83ba32944145",
-        "date": "2026-02-01",
-        "amount": 250,
-        "proofURL": "RIVKA HALPERT.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/c674c768-6a9f-4386-a649-44776a0b9672/contact/ac4a260c-7bbe-4bc4-a6ab-29146ff0a5d2",
-        "date": "2026-08-01",
-        "amount": 250,
-        "proofURL": "SOSIE BAYER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d16073f0-a681-4273-9d56-e148478f2489/contact/2748887f-a80b-4564-9a74-46f10b206d60",
-        "date": "2026-09-01",
-        "amount": 750,
-        "proofURL": "1 ABRAHAM KONIG FRIDGE.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/3b0b9984-da1f-4e8e-810d-754cc575ce0a/contact/d372e548-3ae9-4eca-8b66-0968c86394fd",
-        "date": "2026-10-01",
-        "amount": 250,
-        "proofURL": "MEIR APPELDORFER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/936ed05a-bbb3-4284-8485-78eb00123ee5/contact/df221a94-f96f-4119-8602-12a1ee2e42ee",
-        "date": "2026-11-01",
-        "amount": 750,
-        "proofURL": "LEAH LEFKOWITZ FRIDGE.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
         "url": "https://app.uniteus.io/dashboard/cases/open/c813d34b-8ae5-4af9-b654-a13e573385db/contact/df221a94-f96f-4119-8602-12a1ee2e42ee",
-        "date": "2026-11-01",
+        "date": "11-02-2026",
         "amount": 100,
-        "proofURL": "LEAH LEFKOWITZ MW.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/c9c6c9ec-e554-4b18-bf91-a286973ce36b/contact/417f9faf-0d5c-46b9-b502-5f01d63f7a15",
-        "date": "2026-11-01",
-        "amount": 250,
-        "proofURL": "LEVIA REICHMAN.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/64ab599f-f4d6-4ff6-8607-c96a623e15f7/contact/590125c9-d972-42d5-b011-735a29b06eed",
-        "date": "2026-12-01",
-        "amount": 250,
-        "proofURL": "SHLOMO FRIEDMAN.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/92aa83e4-2e77-4054-8112-bee6d0462086/contact/cf3a4217-addf-4a71-b867-c32ba6bf6778",
-        "date": "2026-12-01",
-        "amount": 250,
-        "proofURL": "MEYER BINIK.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d7b1823d-7e79-49e4-bbde-5ba679c1ef30/contact/3a07f746-d06b-4f03-be67-58682befbec9",
-        "date": "2026-12-01",
-        "amount": 250,
-        "proofURL": "MORDECHAI FRIEDMAN.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d94ff9e4-763c-42a3-b54f-0884ca26c762/contact/4229209d-cc50-42dd-804b-426cab4b3db4",
-        "date": "2026-12-01",
-        "amount": 250,
-        "proofURL": "MEYER BINIK.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/e1392f57-f827-49e3-818e-74c003d59a0c/contact/92f34415-0697-40c7-aee8-f7b42a6ddd83",
-        "date": "2026-12-01",
-        "amount": 250,
-        "proofURL": "LIBA LEITNER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/48ff060b-b13b-4a68-859e-5d00a35b6aca/contact/fbf30fd3-5341-440e-8b09-42b531f2ebff",
-        "date": "2026-02-17",
-        "amount": 250,
-        "proofURL": "chana silberman.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/78204d61-5b84-45cf-b2f9-9c9af54d7857/contact/fbf30fd3-5341-440e-8b09-42b531f2ebff",
-        "date": "2026-02-17",
-        "amount": 100,
-        "proofURL": "0 chana silberman MW.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/21942da1-6d97-4615-9325-fddd7840255d/contact/4d7064ac-cd17-4b37-8fba-d08e895b3cba",
-        "date": "2026-13-01",
-        "amount": 250,
-        "proofURL": "ABRAHAM LEITNER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/b5661501-6e94-49a8-bbf5-0e9be6017374/contact/3c208ddf-361b-4a53-b882-73eacfc20c86",
-        "date": "2026-13-01",
-        "amount": 250,
-        "proofURL": "RACHEL GORALNIK.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d0c35c5d-806e-422b-bdf5-b55b482ef3de/contact/e6b5004a-87dc-42e3-b994-66c8369ab729",
-        "date": "2026-13-01",
-        "amount": 250,
-        "proofURL": "CHANA BINIK.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d93a7238-7b06-4de4-a022-ced350a66e72/contact/0360d6c5-c092-4109-8c5a-2bbf0c6a0dc6",
-        "date": "2026-13-01",
-        "amount": 250,
-        "proofURL": "ELIYAHU HOLTZER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/4df207a2-a680-4d1b-b3e3-0ddb26d0848a/contact/609c6ad6-deb2-4ea3-b72d-3b3c84591bc6",
-        "date": "2026-14-01",
-        "amount": 250,
-        "proofURL": "ESTHER FRIED.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/79f3ea07-fd45-4b55-8660-d440aba31c81/contact/7a4cc6fa-5520-41c9-bbc4-91be756dd39e",
-        "date": "2026-14-01",
-        "amount": 250,
-        "proofURL": "ESTHER WEISS (2).pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/fd962cc2-c42e-4f2b-9024-767da6df5993/contact/88603354-3514-4558-a35e-a78924fd2a41",
-        "date": "2026-14-01",
-        "amount": 250,
-        "proofURL": "YOCHEVED ISRAEL.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/8a1e7c9b-9e5a-404c-9afb-21b3e77942b8/contact/f608fa67-f5b3-405e-9389-b2b7874e1db8",
-        "date": "2026-15-01",
-        "amount": 250,
-        "proofURL": "CHAYE YOUNGER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/bbfec171-5af7-4825-bb6c-b64a2bfe41d2/contact/f5d31ebb-19fb-4dd9-a978-43513e81e320",
-        "date": "2026-15-01",
-        "amount": 250,
-        "proofURL": "RENEE KLARISTENFELD.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d79c0164-cc48-42f3-ba07-03a5482dfc67/contact/19d71a9f-ebcd-43fb-95ba-5b999842795e",
-        "date": "2026-15-01",
-        "amount": 250,
-        "proofURL": "SHMIEL ROTHSCHILD.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/17959142-9b49-4508-bc2f-374105dae022/contact/558751b5-3d44-4fe7-ab69-2c1cc49e03b2",
-        "date": "2026-16-01",
-        "amount": 250,
-        "proofURL": "CHANA MAYEROVITZ.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/a8858959-5ea3-4984-860a-79f93999d638/contact/097ff292-4295-4540-9007-aa758f04ca6d",
-        "date": "2026-19-01",
-        "amount": 250,
-        "proofURL": "ESTHER GOLDHIRSCH.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/e0c1a330-6e84-40bb-97a7-816a6ad9a3b6/contact/097ff292-4295-4540-9007-aa758f04ca6d",
-        "date": "2026-19-01",
-        "amount": 100,
-        "proofURL": "0 ESTHER GOLDHIRSCH MW.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/e3162767-13a5-4670-9c1d-6147a5c8954a/contact/097ff292-4295-4540-9007-aa758f04ca6d",
-        "date": "2026-19-01",
-        "amount": 750,
-        "proofURL": "1 ESTHER GOLDHIRSCH FRIDGE.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/5cc430a2-01b1-4cd8-989d-d331478454c0/contact/c74935f8-12d7-4863-b276-c2db91c9e7c1",
-        "date": "2026-20-01",
-        "amount": 250,
-        "proofURL": "MIRIAM GOLDMAN.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/ba6fb61f-c769-44ee-b2db-4bcd370e5b1a/contact/7a4cc6fa-5520-41c9-bbc4-91be756dd39e",
-        "date": "2026-20-01",
-        "amount": 100,
-        "proofURL": "0 ESTHER WEISS MW.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/da5768ae-bfad-4883-bc9a-ff47fad70012/contact/9cf8c99e-cf07-4182-84a4-1963734cbc56",
-        "date": "2026-20-01",
-        "amount": 750,
-        "proofURL": "1 MIRIAM LOWENSTEIN FRIDGE.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/edfc44bb-23e5-4df2-9fac-0dcf25f7ad67/contact/9cf8c99e-cf07-4182-84a4-1963734cbc56",
-        "date": "2026-20-01",
-        "amount": 750,
-        "proofURL": "MIRIAM LOWENSTEIN.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/fb3bdc92-9a58-419f-9d0d-9403c8a8181f/contact/91366302-c8b0-4909-9ce2-374cb39b8e84",
-        "date": "2026-20-01",
-        "amount": 100,
-        "proofURL": "0 BAILA OLLECH MW.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "http://app.uniteus.io/dashboard/cases/open/ccc0d575-2593-400b-be1c-47b249cadcc5/contact/52d2ed7a-7fc0-4968-90cc-65a0fbdedd53",
-        "date": "2026-21-01",
-        "amount": 250,
-        "proofURL": "YITZCHAK EGER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/007fc2be-d983-4eb0-89e8-0ede0f0e1d62/contact/52d2ed7a-7fc0-4968-90cc-65a0fbdedd53",
-        "date": "2026-21-01",
-        "amount": 750,
-        "proofURL": "1 YITZCHAK EGER FRIDGE.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/2c726f4b-0656-40a4-a64f-d1aec747d3d0/contact/52d2ed7a-7fc0-4968-90cc-65a0fbdedd53",
-        "date": "2026-21-01",
-        "amount": 100,
-        "proofURL": "1 YITZCHAK EGER FRIDGE.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/6e2d94ab-f2f6-4e84-952e-d2f2be23072d/contact/bc14c7ca-eb0b-4058-ac76-7bd93cc7eae2",
-        "date": "2026-21-01",
-        "amount": 750,
-        "proofURL": "0 TZIPORA WOLODARSKY MW.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/7a58c879-1c97-4039-a03b-58ece7305209/contact/f195e85f-2171-4b79-84b0-9609d9a0b6c0",
-        "date": "2026-23-01",
-        "amount": 250,
-        "proofURL": "ZISIEL GOLDBERGER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/150224ff-7ba1-41af-b75a-408780736de2/contact/22bfca12-0508-47bc-86e2-86cfec40706f",
-        "date": "2026-28-01",
-        "amount": 250,
-        "proofURL": "YIDES TANNENBAUM.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/820b787b-c1a4-40ec-a537-23a6be34357a/contact/243e682d-10b9-41ae-9234-360e9f80ecfd",
-        "date": "2/13/26",
-        "amount": 750,
-        "proofURL": "faiga friedman.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/ce6e22a8-5fcb-4219-bf27-8e402afc608e/contact/9b2636bb-c4db-4379-ba41-78f8abf851a5",
-        "date": "2/13/26",
-        "amount": 250,
-        "proofURL": "RIVKA HOLTZER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/dcf10053-06d3-47ff-b0fa-c87e575211a8/contact/7bfd4653-7d5e-48f3-979d-0fa23ca4cfb1",
-        "date": "2/13/26",
-        "amount": 250,
-        "proofURL": "MIRIAM HOLTZER.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/3d2097d1-e0ca-4371-a1e7-dea9356d66c1/contact/5e0dadf9-f2e9-43be-9b70-bbd90a1f5227",
-        "date": "2026-15-02",
-        "amount": 100,
-        "proofURL": "0  PEARL KREMER MW.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d8eb97ec-77ee-4197-ada5-2bf69578aa21/contact/5e0dadf9-f2e9-43be-9b70-bbd90a1f5227",
-        "date": "2026-15-02",
-        "amount": 750,
-        "proofURL": "1  PEARL KREMER FRIDGE.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/3a7c5ecb-3101-42ad-a6e3-bd2e4948cd41/contact/fdcb7430-30a0-4548-9fab-7bbc530b4bf9",
-        "date": "2/15/26",
-        "amount": 250,
-        "proofURL": "chaim rolnitzky.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/893b512b-fad6-411d-8e57-16b6a7a81117/contact/93f242c3-c172-4138-89a5-8e95cd0a35d2",
-        "date": "2/15/26",
-        "amount": 250,
-        "proofURL": "CHESKEL ROLNITZKY.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/01dcf160-004e-498e-bb2b-e682b286be52/contact/9bdf1c57-ddee-45c7-8f5f-63baa08084cd",
-        "date": "2025-16-02",
-        "amount": 750,
-        "proofURL": "DAVID BERKOVITS FRIDGE.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/7490ccbb-7c05-47ac-a8d6-af4fae5debb0/contact/9bdf1c57-ddee-45c7-8f5f-63baa08084cd",
-        "date": "2025-16-02",
-        "amount": 250,
-        "proofURL": "DAVID BERKOVITS.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "proofURL": "https://drive.google.com/file/d/1ZUAGkYAw148le_Hu-6PrAgOkBkZU2xwh/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
         "url": "https://app.uniteus.io/dashboard/cases/open/c51a1d2b-397d-40fe-a44b-9aee05a166e5/contact/9bdf1c57-ddee-45c7-8f5f-63baa08084cd",
-        "date": "2025-16-02",
+        "date": "02-16-2025",
         "amount": 100,
-        "proofURL": "DAVID BERKOVITS MW.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "proofURL": "https://drive.google.com/file/d/1vBrHcGTNPNQgGT1kA8ktJUr9y3_sv90P/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/54c5ed91-3d05-419d-93cc-7257d6aa85ec/contact/48ccdf42-4974-48e7-b146-83ba32944145",
+        "date": "02-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/1ljwnTF7st1V3tWFufrbuwkolKBqRIkzv/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/c674c768-6a9f-4386-a649-44776a0b9672/contact/ac4a260c-7bbe-4bc4-a6ab-29146ff0a5d2",
+        "date": "08-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/16KyUPGGf5GdV71Y7-qRAHckZ2peJ-F4n/view?usp=sharing",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/3b0b9984-da1f-4e8e-810d-754cc575ce0a/contact/d372e548-3ae9-4eca-8b66-0968c86394fd",
+        "date": "10-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/1Qfgm5UgaQDryxYFf9efooNVSrW_SVQv5/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/c9c6c9ec-e554-4b18-bf91-a286973ce36b/contact/417f9faf-0d5c-46b9-b502-5f01d63f7a15",
+        "date": "11-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/1A5ycNTU_3fsXO16waW1FIFaVcXDNanfi/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/64ab599f-f4d6-4ff6-8607-c96a623e15f7/contact/590125c9-d972-42d5-b011-735a29b06eed",
+        "date": "12-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/1QkbgB8miQ3aYbuUlbnx3jWwkGS038LNM/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/92aa83e4-2e77-4054-8112-bee6d0462086/contact/cf3a4217-addf-4a71-b867-c32ba6bf6778",
+        "date": "12-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/11Hlr5iVreUaHuBG_JchFs7ivCXmc3LK4/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/d7b1823d-7e79-49e4-bbde-5ba679c1ef30/contact/3a07f746-d06b-4f03-be67-58682befbec9",
+        "date": "12-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/1qg8onm-Ie2SpkOs9LcqEzK0v3xhkL748/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/d94ff9e4-763c-42a3-b54f-0884ca26c762/contact/4229209d-cc50-42dd-804b-426cab4b3db4",
+        "date": "12-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/11Hlr5iVreUaHuBG_JchFs7ivCXmc3LK4/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/e1392f57-f827-49e3-818e-74c003d59a0c/contact/92f34415-0697-40c7-aee8-f7b42a6ddd83",
+        "date": "12-02-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/19qFE5S0MIbXDqQghkVhkzA5rGSsLDETz/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/8a1e7c9b-9e5a-404c-9afb-21b3e77942b8/contact/f608fa67-f5b3-405e-9389-b2b7874e1db8",
+        "date": "01-15-2026",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/1xbZbwQgFCzqDt1yWz84XrsmyWYqFn2S8/view?usp=drive_link",
+        "dependants": []
+    },
+    {
+        "name": "",
+        "url": "https://app.uniteus.io/dashboard/cases/open/7490ccbb-7c05-47ac-a8d6-af4fae5debb0/contact/9bdf1c57-ddee-45c7-8f5f-63baa08084cd",
+        "date": "02-16-2025",
+        "amount": 250,
+        "proofURL": "https://drive.google.com/file/d/1LuS1LNrJk2VW9w1Y-qeZv4UHiaT6npqK/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
         "url": "https://app.uniteus.io/dashboard/cases/open/d02b9171-a4cf-4359-9bb0-3ce802c906b4/contact/8a416bed-c1e8-4647-b628-e88b97c24dd3",
-        "date": "2025-16-02",
+        "date": "02-16-2025",
         "amount": 250,
-        "proofURL": "GITTY NEUMAN.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "proofURL": "https://drive.google.com/file/d/1tu9esyyuiCZuKaAm04dVCBGQ7yl9OBwd/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
         "url": "https://app.uniteus.io/dashboard/cases/open/ea5683c2-6fa2-42f7-bfbc-e6d3dfe431e7/contact/de08f6b7-e9fa-4ab7-955d-04e3cfa1bb15",
-        "date": "2025-16-02",
+        "date": "02-16-2025",
         "amount": 250,
-        "proofURL": "FISHEL HERSKOVITZ.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/1591f910-8bc6-4580-8cc2-50de0f0adf9a/contact/3f5c5136-7ae2-4717-863b-40f54c4c1602",
-        "date": "2026-16-02",
-        "amount": 250,
-        "proofURL": "ELEIZER WEISZ.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "proofURL": "https://drive.google.com/file/d/12ShWfyEr483V2p5TI1oF2ezPwg-A84PA/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
         "url": "https://app.uniteus.io/dashboard/cases/open/8e64c6a7-c7ec-4ab9-9e03-3c0fb228db2c/contact/efd2bb50-7a51-4853-aed8-839471d47dd7",
-        "date": "2026-16-02",
+        "date": "02-16-2026",
         "amount": 250,
-        "proofURL": "NOSSON SCHNITZER.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "proofURL": "https://drive.google.com/file/d/1NlhaLymfFE86LG3KVHztw5UXoWzUxOy9/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/b8a3a173-7184-48c7-85d0-0f8cfddc7749/contact/efd2bb50-7a51-4853-aed8-839471d47dd7",
-        "date": "2026-16-02",
-        "amount": 250,
-        "proofURL": "NESSY SCHNITZER.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "url": "https://app.uniteus.io/dashboard/cases/open/d16073f0-a681-4273-9d56-e148478f2489/contact/2748887f-a80b-4564-9a74-46f10b206d60",
+        "date": "09-02-2026",
+        "amount": 750,
+        "proofURL": "https://drive.google.com/file/d/1wavhusVsCUGR7rHx5RqdwFGq7SCyMdNJ/view?usp=sharing",
+        "dependants": []
     },
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/b9995134-f10d-4c18-bac1-f93214b41bad/contact/29e58a82-25a2-48eb-92e3-0d78a77e8b92",
-        "date": "2026-16-02",
-        "amount": 250,
-        "proofURL": "ZEVY BRAUN.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "url": "https://app.uniteus.io/dashboard/cases/open/936ed05a-bbb3-4284-8485-78eb00123ee5/contact/df221a94-f96f-4119-8602-12a1ee2e42ee",
+        "date": "11-02-2026",
+        "amount": 750,
+        "proofURL": "https://drive.google.com/file/d/1kDef6zPDC-DHtpXFSjFhQrvU33r22ZYU/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/c93b0290-5725-4f1a-a6ef-2ed66a651a3b/contact/561c44ad-293c-4e6e-994e-d04e7d07d712",
-        "date": "2026-16-02",
-        "amount": 250,
-        "proofURL": "MIRIAM WOSNER.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "url": "https://app.uniteus.io/dashboard/cases/open/edfc44bb-23e5-4df2-9fac-0dcf25f7ad67/contact/9cf8c99e-cf07-4182-84a4-1963734cbc56",
+        "date": "01-20-2026",
+        "amount": 750,
+        "proofURL": "https://drive.google.com/file/d/1vAJQ9A0GniB0zyNnlA4i4PXo-FJ3itaw/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d1132ff3-59c9-4194-a935-892cb8c29255/contact/e55ca133-8035-4724-ab00-f6d9a2bf72b3",
-        "date": "2026-16-02",
-        "amount": 250,
-        "proofURL": "LAZER WIZEL.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "url": "https://app.uniteus.io/dashboard/cases/open/007fc2be-d983-4eb0-89e8-0ede0f0e1d62/contact/52d2ed7a-7fc0-4968-90cc-65a0fbdedd53",
+        "date": "01-21-2026",
+        "amount": 750,
+        "proofURL": "https://drive.google.com/file/d/1kBt0AW8JRenMP8kv9XqAqKjQvr_FIrYi/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/d87c86c9-f25e-45b1-83cb-aadfe38264ae/contact/ffc3f77e-cbdc-4da8-8817-02e44558cce3",
-        "date": "2026-16-02",
-        "amount": 250,
-        "proofURL": "RACHEL SCHNITZER.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "url": "https://app.uniteus.io/dashboard/cases/open/6e2d94ab-f2f6-4e84-952e-d2f2be23072d/contact/bc14c7ca-eb0b-4058-ac76-7bd93cc7eae2",
+        "date": "01-21-2026",
+        "amount": 750,
+        "proofURL": "https://drive.google.com/file/d/1-lgyyfMjn5V42db_wW-tXtfM0430wN_N/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/f1ef5ce7-75a2-4ba9-8e00-757cd67af25a/contact/3ab1b38e-abd9-4c66-8f96-906721dbec7d",
-        "date": "2026-16-02",
-        "amount": 250,
-        "proofURL": "LIbBY STAUBeR.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "url": "https://app.uniteus.io/dashboard/cases/open/820b787b-c1a4-40ec-a537-23a6be34357a/contact/243e682d-10b9-41ae-9234-360e9f80ecfd",
+        "date": "02-13-2026",
+        "amount": 750,
+        "proofURL": "https://drive.google.com/file/d/1FfmZdQtCrfS3TpqNG0I2ZcS4MkYPkV-F/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/f7384675-ccd3-40a2-b147-ccd4934a4fca/contact/3def497e-df9a-492e-bfb8-31e277b51386",
-        "date": "2026-16-02",
-        "amount": 250,
-        "proofURL": "RACHEL LOWY.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "url": "https://app.uniteus.io/dashboard/cases/open/d8eb97ec-77ee-4197-ada5-2bf69578aa21/contact/5e0dadf9-f2e9-43be-9b70-bbd90a1f5227",
+        "date": "02-15-2026",
+        "amount": 750,
+        "proofURL": "https://drive.google.com/file/d/1-sdbOQC0TSOEHabfsOyv9htYNY-mtruO/view?usp=drive_link",
+        "dependants": []
     },
     {
         "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/2d3135af-6a3a-4388-9bb0-54df3bab4132/contact/416635e5-b51b-4eb9-b5b2-c7d5cba07a94",
-        "date": "2026-17-02",
-        "amount": 250,
-        "proofURL": "HYNDA TEITELBAUM.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/4d751654-700b-4eec-83f4-b9a8a1fada73/contact/d2d32d6c-31f2-421f-bc1e-e1d37ef31ad1",
-        "date": "2026-17-02",
-        "amount": 250,
-        "proofURL": "GITTY TEITELBAUTM.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/302e792e-9032-4eb1-8864-d9883e6f0977/contact/2e476b34-a605-4ebf-a265-5ada65ae33f6",
-        "date": "2026-18-02",
-        "amount": 250,
-        "proofURL": "louis kestenbaum.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/55c3e638-53bf-4360-be07-03c0347972fd/contact/1c003f23-9384-4f75-9f1d-d4055606fb72",
-        "date": "2026-18-02",
-        "amount": 250,
-        "proofURL": "joel kestenbaum.pdf",
-        "dependants": [],
-        "equipment": "true"
-    },
-    {
-        "name": "",
-        "url": "https://app.uniteus.io/dashboard/cases/open/86b9096a-acc6-4e0b-9608-b08c893176bc/contact/5cc1a1e1-e668-4f81-8928-80aa8b2aa83e",
-        "date": "2026-18-02",
-        "amount": 250,
-        "proofURL": "zvi kestenbaum.pdf",
-        "dependants": [],
-        "equipment": "true"
+        "url": "https://app.uniteus.io/dashboard/cases/open/01dcf160-004e-498e-bb2b-e682b286be52/contact/9bdf1c57-ddee-45c7-8f5f-63baa08084cd",
+        "date": "02-16-2025",
+        "amount": 750,
+        "proofURL": "https://drive.google.com/file/d/1FWEuRXcQmf3NQFWO9W_nTCFtHCgSMPCR/view?usp=drive_link",
+        "dependants": []
     }
 ]

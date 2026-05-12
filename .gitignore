@@ -10,3 +10,6 @@ Thumbs.db
 # IDE
 .idea/
 *.iml
+
+# Local spreadsheets (not tracked)
+/*.xlsx
